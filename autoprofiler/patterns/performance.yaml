@@ -1,0 +1,14 @@
+- id: high_cpu_usage
+  meaning: "Sustained CPU consumption observed"
+  condition:
+    cpu_percent_avg: "> 75"
+  suggestions:
+    - "Inspect hot paths with sampling profilers like py-spy."
+    - "Look for busy loops or unnecessary polling."
+- id: memory_growth_risk
+  meaning: "Resident set size peaks above expected thresholds"
+  condition:
+    rss_bytes_max: "> 500000000"
+  suggestions:
+    - "Review object lifecycles and caching strategies."
+    - "Capture heap snapshots to locate large allocations."

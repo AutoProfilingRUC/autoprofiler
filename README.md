@@ -71,6 +71,46 @@ TargetProgram = {
 }
 ```
 
+---
+
+## 15. Minimal Reference Implementation (for contributors)
+
+The repository includes a lightweight Python package scaffold (`autoprofiler/`) that follows the rules above:
+
+* `autoprofiler.models` defines the immutable schemas (`TargetProgram`, `ProfileArtifact`, `Finding`, etc.).
+* `autoprofiler.runner.Runner` launches opaque commands, captures stdout/stderr, and invokes collectors without modifying the target program.
+* `autoprofiler.collectors.PsutilCollector` observes CPU and memory usage for an existing PID using periodic sampling (no instrumentation).
+* `autoprofiler.patterns.loader` reads declarative YAML pattern definitions (see `autoprofiler/patterns/performance.yaml`).
+* `autoprofiler.analyzers.PatternMatchingAnalyzer` deterministically matches collector metrics against pattern thresholds to emit structured findings.
+* `autoprofiler.reporting.reporter` renders `report.md`-style text and `findings.json` payloads from a profiling session.
+
+### Quickstart
+
+```python
+from pathlib import Path
+
+from autoprofiler.runner import Runner
+from autoprofiler.models import TargetProgram
+from autoprofiler.collectors.psutil_collector import PsutilCollector
+from autoprofiler.patterns.loader import load_patterns
+from autoprofiler.analyzers.simple_analyzer import PatternMatchingAnalyzer
+from autoprofiler.reporting.reporter import render_findings_json, render_markdown
+
+
+target = TargetProgram(command=["python", "-c", "print('hello')"], timeout=5)
+collector = PsutilCollector(sample_interval=0.25)
+session = Runner().run(target, collectors=[collector])
+
+patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
+analyzer = PatternMatchingAnalyzer(patterns)
+session.findings = analyzer.analyze(session.artifacts)
+
+print(render_markdown(session))
+print(render_findings_json(session))
+```
+
+This quickstart keeps the **black-box profiling** philosophy intact: it launches the target command, observes metrics externally, matches them against declarative patterns, and produces reproducible reports.
+
 Key implications:
 
 * The profiler **launches and observes**, but does not interfere.
