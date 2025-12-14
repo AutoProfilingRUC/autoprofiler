@@ -12,3 +12,18 @@
   suggestions:
     - "Review object lifecycles and caching strategies."
     - "Capture heap snapshots to locate large allocations."
+- id: insufficient_system_samples
+  meaning: "Insufficient sampling data collected"
+  condition:
+    sample_count: "< 2"
+  suggestions:
+    - "Run the workload for longer or decrease the sampling interval."
+    - "Ensure the process remains active while profiling."
+- id: cpu_hot_path_detected
+  category: "cpu"
+  meaning: "High cumulative CPU time reported by cProfile"
+  condition:
+    total_time: "> 1.0"
+  suggestions:
+    - "Inspect top_functions in the cProfile artifact for hotspots."
+    - "Batch or cache expensive computations to reduce repeated work."

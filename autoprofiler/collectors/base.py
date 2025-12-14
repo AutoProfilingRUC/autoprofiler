@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from ..models import ProfileArtifact
 
@@ -20,6 +20,15 @@ class Collector(ABC):
     def __init__(self, category: str) -> None:
         self.category = category
         self._started_at: Optional[datetime] = None
+
+    def prepare_command(self, command: List[str]) -> List[str]:
+        """Allow collectors to wrap or adjust the launch command.
+
+        The default implementation returns the original command unchanged so
+        collectors that only attach post-launch do not need to override it.
+        """
+
+        return command
 
     @abstractmethod
     def start(self, pid: int) -> None:
