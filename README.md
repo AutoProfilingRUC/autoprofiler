@@ -114,10 +114,12 @@ Each collector:
 
   * Uses `python -m cProfile`
   * Collects call counts and cumulative time
+  * Wraps the target command via `Collector.prepare_command`
 * **PySpyCollector**
 
   * Sampling-based CPU profiler
   * Low overhead, no source modification
+  * Gracefully degrades with a warning when the `py-spy` binary is unavailable
 * **PsutilCollector**
 
   * System-level metrics:
@@ -338,6 +340,10 @@ print(render_markdown(session))
 print(render_findings_json(session))
 ```
 
+For a deeper CPU view, you can wrap the target with `CProfileCollector` and also
+add `PySpyCollector` (requires the `py-spy` binary in `PATH`) to capture sampling
+data without code changes.
+
 This quickstart keeps the **black-box profiling** philosophy intact: it launches the target command, observes metrics externally, matches them against declarative patterns, and produces reproducible reports.
 
 Key implications:
@@ -350,5 +356,13 @@ Key implications:
   * a test suite
   * a service (short-lived or long-running)
 * The profiler must work **without knowing program internals**.
+
+### Demo workload
+
+Run `python -m autoprofiler.demo_profile` to see psutil sampling combined with
+`CProfileCollector` on a CPU-heavy workload that runs for a few seconds. The
+demo loads patterns from `autoprofiler/patterns/performance.yaml` and prints the
+resulting markdown and JSON findings so you can validate the pipeline end to
+end.
 
 ---
