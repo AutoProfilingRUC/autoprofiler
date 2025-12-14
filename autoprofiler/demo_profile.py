@@ -1,4 +1,4 @@
-"""Demonstration script wiring collectors and analyzers together.
+"""Self-contained demo wiring collectors and analyzers together
 
 The demo keeps the workload simple and CPU-bound so it produces visible
 artifacts for both psutil sampling and cProfile without relying on any
