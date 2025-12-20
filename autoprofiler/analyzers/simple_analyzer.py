@@ -20,12 +20,8 @@ class PatternMatchingAnalyzer(Analyzer):
         findings: List[Finding] = []
         artifact_list = list(artifacts)
         for artifact_index, artifact in enumerate(artifact_list):
-            merged_metrics = self._merge_metrics(artifact)
             for pattern in self.patterns:
-                if not self._category_matches(artifact, pattern):
-                    continue
-
-                matches, evidence = self._matches_pattern(merged_metrics, pattern)
+                matches, evidence = self._matches_pattern(artifact.metrics, pattern)
                 if not matches:
                     continue
 
@@ -45,21 +41,6 @@ class PatternMatchingAnalyzer(Analyzer):
                     )
                 )
         return findings
-
-    def _merge_metrics(self, artifact: ProfileArtifact) -> Dict[str, float]:
-        merged: Dict[str, float] = {}
-        for key, value in artifact.metrics.items():
-            try:
-                merged[key] = float(value)
-            except (TypeError, ValueError):
-                continue
-            namespaced = f"{artifact.category}.{key}"
-            merged[namespaced] = merged[key]
-        return merged
-
-    def _category_matches(self, artifact: ProfileArtifact, pattern: Dict) -> bool:
-        pattern_category = pattern.get("category")
-        return pattern_category is None or pattern_category == artifact.category
 
     def _matches_pattern(
         self, metrics: Dict[str, float], pattern: Dict

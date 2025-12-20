@@ -22,9 +22,8 @@ class Runner:
 
     def run(self, target: TargetProgram, collectors: Iterable[Collector]) -> ProfilingSession:
         started_at = datetime.utcnow()
-        launch_command = self._prepare_command(target.command, collectors)
         process = subprocess.Popen(
-            launch_command,
+            target.command,
             cwd=target.cwd,
             env=self._build_env(target),
             stdout=subprocess.PIPE,
@@ -62,13 +61,6 @@ class Runner:
             artifacts=artifacts,
             findings=[],
         )
-
-    @staticmethod
-    def _prepare_command(command: List[str], collectors: Iterable[Collector]) -> List[str]:
-        prepared_command = list(command)
-        for collector in collectors:
-            prepared_command = collector.prepare_command(prepared_command)
-        return prepared_command
 
     @staticmethod
     def _build_env(target: TargetProgram) -> dict:
