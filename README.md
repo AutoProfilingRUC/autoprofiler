@@ -200,10 +200,12 @@ Each collector:
 
   * Uses `python -m cProfile`
   * Collects call counts and cumulative time
+  * Wraps the target command via `Collector.prepare_command`
 * **PySpyCollector**
 
   * Sampling-based CPU profiler
   * Low overhead, no source modification
+  * Gracefully degrades with a warning when the `py-spy` binary is unavailable
 * **PsutilCollector**
 
   * System-level metrics:
@@ -385,3 +387,87 @@ The system exists to:
 * Increase diagnostic accuracy
 * Improve explainability
 * Enable reproducible performance engineering
+
+---
+
+## 15. Minimal Reference Implementation (for contributors)
+
+The repository includes a lightweight Python package scaffold (`autoprofiler/`) that follows the rules above:
+
+* `autoprofiler.models` defines the immutable schemas (`TargetProgram`, `ProfileArtifact`, `Finding`, etc.).
+* `autoprofiler.runner.Runner` launches opaque commands, captures stdout/stderr, and invokes collectors without modifying the target program.
+* `autoprofiler.collectors.PsutilCollector` observes CPU and memory usage for an existing PID using periodic sampling (no instrumentation).
+* `autoprofiler.patterns.loader` reads declarative YAML pattern definitions (see `autoprofiler/patterns/performance.yaml`).
+* `autoprofiler.analyzers.PatternMatchingAnalyzer` deterministically matches collector metrics against pattern thresholds to emit structured findings.
+* `autoprofiler.reporting.reporter` renders `report.md`-style text and `findings.json` payloads from a profiling session.
+
+### Quickstart
+
+```python
+from pathlib import Path
+
+from autoprofiler.runner import Runner
+from autoprofiler.models import TargetProgram
+from autoprofiler.collectors.psutil_collector import PsutilCollector
+from autoprofiler.patterns.loader import load_patterns
+from autoprofiler.analyzers.simple_analyzer import PatternMatchingAnalyzer
+from autoprofiler.reporting.reporter import render_findings_json, render_markdown
+
+
+target = TargetProgram(command=["python", "-c", "print('hello')"], timeout=5)
+collector = PsutilCollector(sample_interval=0.25)
+session = Runner().run(target, collectors=[collector])
+
+patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
+analyzer = PatternMatchingAnalyzer(patterns)
+session.findings = analyzer.analyze(session.artifacts)
+
+print(render_markdown(session))
+print(render_findings_json(session))
+```
+
+For a deeper CPU view, you can wrap the target with `CProfileCollector` and also
+add `PySpyCollector` (requires the `py-spy` binary in `PATH`) to capture sampling
+data without code changes.
+
+This quickstart keeps the **black-box profiling** philosophy intact: it launches the target command, observes metrics externally, matches them against declarative patterns, and produces reproducible reports.
+
+Key implications:
+
+* The profiler **launches and observes**, but does not interfere.
+* The program may be:
+
+  * a script
+  * a module (`python -m xxx`)
+  * a test suite
+  * a service (short-lived or long-running)
+* The profiler must work **without knowing program internals**.
+
+### Demo workload
+
+Run `python -m autoprofiler.demo_profile` to see psutil sampling combined with
+`CProfileCollector` on a CPU-heavy workload that runs for a few seconds. The
+demo loads patterns from `autoprofiler/patterns/performance.yaml` and prints the
+resulting markdown and JSON findings so you can validate the pipeline end to
+end.
+
+### Run AutoProfiler from the terminal
+
+You can launch the full profiling pipeline directly from the terminal using the
+template test in `tests/test_autoprofiler_template.py`. The test profiles a
+tiny inline Python command by default so you can see the end-to-end output, and
+it can be pointed at any executable command by setting an environment variable.
+
+```bash
+# Run the default inline program
+python -m unittest tests.test_autoprofiler_template
+
+# Point the profiler at your own program (any executable command works)
+AUTOPROFILER_TARGET="python my_script.py --flag" \
+  python -m unittest tests.test_autoprofiler_template
+```
+
+The template test will print the generated markdown report to stdout so you can
+quickly inspect findings without wiring up additional code.
+
+---
