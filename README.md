@@ -71,6 +71,81 @@ TargetProgram = {
 }
 ```
 
+---
+
+## 5. Installation & Environment Setup
+
+The project is developed with **Python 3.10+** and keeps dependencies minimal to respect the black-box profiling philosophy.
+
+### Create an isolated environment (recommended)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+```
+
+### Install runtime dependencies
+
+`autoprofiler` currently relies on a handful of third-party libraries:
+
+* [`psutil`](https://pypi.org/project/psutil/) — used by `PsutilCollector` for CPU and memory sampling
+* [`PyYAML`](https://pypi.org/project/PyYAML/) — used to load declarative performance patterns
+
+Install them directly:
+
+```bash
+python -m pip install psutil pyyaml
+```
+
+> Note: Additional collectors (e.g., cProfile- or py-spy-based) may introduce optional dependencies; consult their module docstrings before use.
+
+To validate the installation, run a lightweight import and bytecode compilation check:
+
+```bash
+python -m compileall autoprofiler
+```
+
+---
+
+## 6. Minimal Reference Implementation (for contributors)
+
+The repository includes a lightweight Python package scaffold (`autoprofiler/`) that follows the rules above:
+
+* `autoprofiler.models` defines the immutable schemas (`TargetProgram`, `ProfileArtifact`, `Finding`, etc.).
+* `autoprofiler.runner.Runner` launches opaque commands, captures stdout/stderr, and invokes collectors without modifying the target program.
+* `autoprofiler.collectors.PsutilCollector` observes CPU and memory usage for an existing PID using periodic sampling (no instrumentation).
+* `autoprofiler.patterns.loader` reads declarative YAML pattern definitions (see `autoprofiler/patterns/performance.yaml`).
+* `autoprofiler.analyzers.PatternMatchingAnalyzer` deterministically matches collector metrics against pattern thresholds to emit structured findings.
+* `autoprofiler.reporting.reporter` renders `report.md`-style text and `findings.json` payloads from a profiling session.
+
+### Quickstart
+
+```python
+from pathlib import Path
+
+from autoprofiler.runner import Runner
+from autoprofiler.models import TargetProgram
+from autoprofiler.collectors.psutil_collector import PsutilCollector
+from autoprofiler.patterns.loader import load_patterns
+from autoprofiler.analyzers.simple_analyzer import PatternMatchingAnalyzer
+from autoprofiler.reporting.reporter import render_findings_json, render_markdown
+
+
+target = TargetProgram(command=["python", "-c", "print('hello')"], timeout=5)
+collector = PsutilCollector(sample_interval=0.25)
+session = Runner().run(target, collectors=[collector])
+
+patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
+analyzer = PatternMatchingAnalyzer(patterns)
+session.findings = analyzer.analyze(session.artifacts)
+
+print(render_markdown(session))
+print(render_findings_json(session))
+```
+
+This quickstart keeps the **black-box profiling** philosophy intact: it launches the target command, observes metrics externally, matches them against declarative patterns, and produces reproducible reports.
+
 Key implications:
 
 * The profiler **launches and observes**, but does not interfere.
@@ -84,7 +159,7 @@ Key implications:
 
 ---
 
-## 5. Runner Responsibilities
+## 7. Runner Responsibilities
 
 The `Runner` module is responsible for:
 
@@ -109,7 +184,7 @@ The Runner **must not**:
 
 ---
 
-## 6. Collectors: Data Acquisition Layer
+## 8. Collectors: Data Acquisition Layer
 
 Collectors are **pluggable, independent modules** that observe the running process.
 
@@ -142,7 +217,7 @@ Collectors should **never interpret results** — only collect and serialize.
 
 ---
 
-## 7. Artifacts and Data Format
+## 9. Artifacts and Data Format
 
 All collectors output standardized artifacts.
 
@@ -164,7 +239,7 @@ Artifacts must be:
 
 ---
 
-## 8. Analyzers: Pattern-Based Diagnosis
+## 10. Analyzers: Pattern-Based Diagnosis
 
 Analyzers consume artifacts and generate **Findings**.
 
@@ -206,7 +281,7 @@ All findings must:
 
 ---
 
-## 9. Performance Pattern Knowledge Base
+## 11. Performance Pattern Knowledge Base
 
 Performance knowledge is encoded as **explicit patterns**, not hardcoded logic.
 
@@ -233,7 +308,7 @@ This enables:
 
 ---
 
-## 10. LLM Integration Philosophy
+## 12. LLM Integration Philosophy
 
 LLMs (Codex / GPT) are used for **explanation and synthesis**, NOT raw inference.
 
@@ -256,7 +331,7 @@ LLMs must NOT:
 
 ---
 
-## 11. Output and Reports
+## 13. Output and Reports
 
 Primary output formats:
 
@@ -274,7 +349,7 @@ Reports must include:
 
 ---
 
-## 12. Design Constraints (For Codex)
+## 14. Design Constraints (For Codex)
 
 When generating or modifying code, **always respect**:
 
@@ -287,7 +362,7 @@ When generating or modifying code, **always respect**:
 
 ---
 
-## 13. Expected Evolution
+## 15. Expected Evolution
 
 Planned future extensions:
 
@@ -299,7 +374,7 @@ Planned future extensions:
 
 ---
 
-## 14. Guiding Philosophy
+## 16. Guiding Philosophy
 
 > AutoProfiler is not an optimizer.
 > It is an **automated performance analyst**.
