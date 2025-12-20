@@ -365,4 +365,23 @@ demo loads patterns from `autoprofiler/patterns/performance.yaml` and prints the
 resulting markdown and JSON findings so you can validate the pipeline end to
 end.
 
+### Run AutoProfiler from the terminal
+
+You can launch the full profiling pipeline directly from the terminal using the
+template test in `tests/test_autoprofiler_template.py`. The test profiles a
+tiny inline Python command by default so you can see the end-to-end output, and
+it can be pointed at any executable command by setting an environment variable.
+
+```bash
+# Run the default inline program
+python -m unittest tests.test_autoprofiler_template
+
+# Point the profiler at your own program (any executable command works)
+AUTOPROFILER_TARGET="python my_script.py --flag" \
+  python -m unittest tests.test_autoprofiler_template
+```
+
+The template test will print the generated markdown report to stdout so you can
+quickly inspect findings without wiring up additional code.
+
 ---
