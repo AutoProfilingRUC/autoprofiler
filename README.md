@@ -75,9 +75,29 @@ TargetProgram = {
 
 ## 5. Installation & Environment Setup
 
-The project is developed with **Python 3.10+** and keeps dependencies minimal to respect the black-box profiling philosophy.
+### Requirements
 
-### Create an isolated environment (recommended)
+* Python ≥ 3.10
+
+* Linux / WSL recommended (for py-spy)
+
+### Option A: One-step bootstrap (recommended)
+
+```bash
+python -m venv .venv
+python3 tools/bootstrap.py
+source .venv/bin/activate
+```
+
+This will:
+
+* Create a virtual environment
+
+* Install all dependencies from requirements.txt
+
+### Option B: Manual setup
+
+#### Create an isolated environment
 
 ```bash
 python -m venv .venv
@@ -85,7 +105,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 ```
 
-### Install runtime dependencies
+#### Install runtime dependencies
 
 `autoprofiler` currently relies on a handful of third-party libraries:
 

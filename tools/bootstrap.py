@@ -53,7 +53,7 @@ def main():
     print("\nNext:")
     print(f"  cd {project_root}")
     print("  source .venv/bin/activate")
-    print("  python -m autoprofiler.demo_profile")
+    print("  python -m unittest tests.test_autoprofiler_template")
 
 
 if __name__ == "__main__":
