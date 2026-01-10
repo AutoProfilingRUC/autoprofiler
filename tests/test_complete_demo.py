@@ -6,7 +6,8 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# 添加项目根目录到路径（从tests文件夹运行时）
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from autoprofiler.runner import Runner
 from autoprofiler.models import TargetProgram
@@ -61,7 +62,7 @@ print(f"Final result: {result}")
     session = Runner().run(target, collectors=collectors)
     
     # 加载模式并分析
-    patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
+    patterns = load_patterns(Path(__file__).parent.parent / "autoprofiler/patterns/performance.yaml")
     analyzer = PatternMatchingAnalyzer(patterns)
     session.findings = analyzer.analyze(session.artifacts)
     

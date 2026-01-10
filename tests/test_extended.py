@@ -7,7 +7,8 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# 添加项目根目录到路径（从tests文件夹运行时）
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from autoprofiler.runner import Runner
 from autoprofiler.models import TargetProgram
@@ -43,7 +44,7 @@ print(f"Total: {total}")
     collector = PsutilCollector(sample_interval=0.2)
     session = Runner().run(target, collectors=[collector])
     
-    patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
+    patterns = load_patterns(Path(__file__).parent.parent / "autoprofiler/patterns/performance.yaml")
     analyzer = PatternMatchingAnalyzer(patterns)
     session.findings = analyzer.analyze(session.artifacts)
     
@@ -104,7 +105,7 @@ print(f"Result: {result}")
     
     session = Runner().run(target, collectors=collectors)
     
-    patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
+    patterns = load_patterns(Path(__file__).parent.parent / "autoprofiler/patterns/performance.yaml")
     analyzer = PatternMatchingAnalyzer(patterns)
     session.findings = analyzer.analyze(session.artifacts)
     
@@ -172,7 +173,7 @@ print(f"Total items: {len(data)}, Total elements: {total}")
     collector = PsutilCollector(sample_interval=0.15)
     session = Runner().run(target, collectors=[collector])
     
-    patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
+    patterns = load_patterns(Path(__file__).parent.parent / "autoprofiler/patterns/performance.yaml")
     analyzer = PatternMatchingAnalyzer(patterns)
     session.findings = analyzer.analyze(session.artifacts)
     
