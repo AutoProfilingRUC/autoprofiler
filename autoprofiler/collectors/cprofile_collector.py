@@ -9,7 +9,7 @@ results are reproducible and can be re-analyzed later.
 from __future__ import annotations
 
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import pstats
@@ -34,12 +34,12 @@ class CProfileCollector(Collector):
         timestamp to avoid collisions while keeping artifacts easy to locate.
         """
 
-        timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
         self._output_file = Path(self.output_dir) / f"cprofile_{timestamp}.pstats"
         return [sys.executable, "-m", "cProfile", "-o", str(self._output_file), *command]
 
     def start(self, pid: int) -> None:  # noqa: ARG002 - pid recorded for interface compliance
-        self._started_at = datetime.utcnow()
+        self._started_at = datetime.now(timezone.utc)
 
     def stop(self) -> ProfileArtifact:
         metrics = self._extract_metrics()

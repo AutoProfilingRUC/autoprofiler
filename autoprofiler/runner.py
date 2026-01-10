@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterable, List
 
 from .models import ExecutionResult, ProfilingSession, ProfileArtifact, TargetProgram
@@ -21,7 +21,7 @@ class Runner:
     """Launches target programs under profiling collectors."""
 
     def run(self, target: TargetProgram, collectors: Iterable[Collector]) -> ProfilingSession:
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         process = subprocess.Popen(
             target.command,
             cwd=target.cwd,
@@ -45,7 +45,7 @@ class Runner:
             for collector in collectors:
                 artifacts.append(collector.stop())
 
-        finished_at = datetime.utcnow()
+        finished_at = datetime.now(timezone.utc)
         execution = ExecutionResult(
             pid=process.pid,
             returncode=process.returncode,

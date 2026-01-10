@@ -1,3 +1,4 @@
+# ===== CPU Related Patterns =====
 - id: high_cpu_usage
   meaning: "Sustained CPU consumption observed"
   condition:
@@ -5,6 +6,57 @@
   suggestions:
     - "Inspect hot paths with sampling profilers like py-spy."
     - "Look for busy loops or unnecessary polling."
+
+- id: low_cpu_high_io
+  meaning: "Low CPU usage suggests IO-bound workload or blocking operations"
+  condition:
+    cpu_percent_avg: "< 20"
+    sample_count: "> 10"
+  suggestions:
+    - "Check for blocking I/O operations (file, network, database)."
+    - "Consider async/await patterns if using synchronous I/O."
+    - "Profile I/O wait time separately."
+
+- id: cpu_variance_high
+  meaning: "High CPU usage variance indicates inconsistent workload distribution"
+  condition:
+    cpu_percent_max: "> 80"
+    cpu_percent_avg: "< 50"
+  suggestions:
+    - "Investigate bursty workloads or periodic tasks."
+    - "Consider workload smoothing or batching strategies."
+
+# ===== Function Call Related Patterns (CProfile) =====
+- id: high_call_count_small_fn
+  meaning: "Excessive invocation of small functions causes interpreter overhead"
+  condition:
+    total_calls: "> 1000000"
+    total_time: "< 5"
+  suggestions:
+    - "Consider inlining frequently called small functions."
+    - "Batch operations to reduce call overhead."
+    - "Use list comprehensions or vectorized operations."
+
+- id: single_function_dominates
+  meaning: "One function consumes disproportionate execution time"
+  condition:
+    function_time_ratio: "> 0.5"
+    total_time: "> 1"
+  suggestions:
+    - "Focus optimization efforts on the identified hot function."
+    - "Consider algorithmic improvements or caching."
+    - "Check if the function can be parallelized."
+
+- id: high_calls_low_time
+  meaning: "Many function calls but low total time suggests overhead-dominated execution"
+  condition:
+    total_calls: "> 500000"
+    total_time: "< 0.5"
+  suggestions:
+    - "Reduce function call overhead through inlining or batching."
+    - "Consider using built-in functions or C extensions."
+
+# ===== Memory Related Patterns =====
 - id: memory_growth_risk
   meaning: "Resident set size peaks above expected thresholds"
   condition:
@@ -12,3 +64,85 @@
   suggestions:
     - "Review object lifecycles and caching strategies."
     - "Capture heap snapshots to locate large allocations."
+
+- id: vms_rss_ratio_high
+  meaning: "High virtual memory to RSS ratio suggests memory fragmentation or sparse allocations"
+  condition:
+    vms_rss_ratio: "> 4.0"
+    vms_bytes_max: "> 2000000000"
+  suggestions:
+    - "Investigate memory fragmentation issues."
+    - "Review large sparse data structures."
+    - "Consider memory-mapped files for large datasets."
+
+- id: memory_growth_trend
+  meaning: "Memory usage shows upward trend during execution"
+  condition:
+    memory_growth_trend: "> 0.1"
+  suggestions:
+    - "Check for memory leaks or unbounded caches."
+    - "Review object lifecycle management."
+    - "Use memory profilers (tracemalloc, memray) for detailed analysis."
+
+# ===== Execution Time Related Patterns =====
+- id: long_execution_time
+  meaning: "Program execution exceeds expected duration"
+  condition:
+    total_time: "> 10"
+  suggestions:
+    - "Profile with py-spy to identify hot paths."
+    - "Consider parallelization opportunities."
+    - "Review algorithm complexity."
+
+# ===== Hot Function Patterns =====
+- id: top_functions_concentration
+  meaning: "Top N functions consume majority of execution time"
+  condition:
+    top_function_ratio: "> 0.7"
+    total_time: "> 1"
+  suggestions:
+    - "Focus optimization on the identified hot functions."
+    - "Review these functions for algorithmic improvements."
+    - "Consider profiling these functions in isolation."
+
+- id: hot_function_high_call_count
+  meaning: "Hot function has unusually high call count"
+  condition:
+    top_function_call_count: "> 100000"
+    total_time: "> 1"
+  suggestions:
+    - "Review if function calls can be reduced through caching."
+    - "Check for redundant calls in loops."
+    - "Consider memoization or result caching."
+
+# ===== Sampling Related Patterns =====
+- id: insufficient_sampling
+  meaning: "Too few samples collected for reliable analysis"
+  condition:
+    sample_count: "< 5"
+  suggestions:
+    - "Increase sample_interval or execution duration."
+    - "Ensure program runs long enough for meaningful profiling."
+
+# ===== Combined Patterns (Multi-Artifact) =====
+- id: cpu_intensive_few_calls
+  meaning: "High CPU usage with few function calls suggests tight loops or native code"
+  requires_multiple_artifacts: true
+  condition:
+    cpu_from_system: "> 70"
+    calls_from_cpu: "< 10000"
+  suggestions:
+    - "Profile with py-spy to see native code execution."
+    - "Review tight loops for optimization opportunities."
+    - "Consider using NumPy or other optimized libraries."
+
+- id: memory_intensive_low_cpu
+  meaning: "High memory usage with low CPU suggests data processing or caching workload"
+  requires_multiple_artifacts: true
+  condition:
+    memory_from_system: "> 1000000000"
+    cpu_from_system: "< 30"
+  suggestions:
+    - "Review data structure choices and sizes."
+    - "Check for unnecessary data copying."
+    - "Consider streaming or chunked processing."

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -39,7 +39,7 @@ class PySpyCollector(Collector):
             self._disabled_reason = "py-spy not available in PATH"
             return
 
-        timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
         suffix = "svg" if self.flamegraph else "raw"
         self._output_file = Path(self.output_dir) / f"pyspy_{timestamp}.{suffix}"
 

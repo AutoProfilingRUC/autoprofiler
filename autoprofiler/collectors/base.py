@@ -8,7 +8,7 @@ modifying the target program or assuming its internal structure.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from ..models import ProfileArtifact
@@ -34,4 +34,4 @@ class Collector(ABC):
         """Produce a ProfileArtifact summarizing observed data."""
 
     def _stamp(self) -> str:
-        return datetime.utcnow().isoformat()
+        return datetime.now(timezone.utc).isoformat()

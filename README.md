@@ -328,6 +328,41 @@ This enables:
 * Extensibility
 * LLM-friendly reasoning
 
+### Available Performance Patterns
+
+AutoProfiler includes a comprehensive set of performance patterns organized by category:
+
+#### CPU-Related Patterns
+* **high_cpu_usage**: Sustained high CPU consumption (>75%)
+* **low_cpu_high_io**: Low CPU usage suggesting IO-bound workload (<20%)
+* **cpu_variance_high**: High CPU variance indicating inconsistent workload
+
+#### Function Call Patterns (CProfile-based)
+* **high_call_count_small_fn**: Excessive small function invocations (>1M calls, <5s total)
+* **single_function_dominates**: One function consumes >50% of execution time
+* **high_calls_low_time**: Many calls but low total time (overhead-dominated)
+
+#### Memory Patterns
+* **memory_growth_risk**: RSS memory exceeds threshold (>500MB)
+* **vms_rss_ratio_high**: High virtual-to-physical memory ratio (>4.0, suggests fragmentation)
+* **memory_growth_trend**: Upward memory trend during execution (potential leak)
+
+#### Execution Time Patterns
+* **long_execution_time**: Execution exceeds expected duration (>10s)
+
+#### Hot Function Patterns
+* **top_functions_concentration**: Top functions consume >70% of time
+* **hot_function_high_call_count**: Hot function has unusually high call count (>100K)
+
+#### Sampling Patterns
+* **insufficient_sampling**: Too few samples collected (<5 samples)
+
+#### Combined Patterns (Multi-Artifact)
+* **cpu_intensive_few_calls**: High CPU (>70%) with few calls (<10K) - suggests tight loops
+* **memory_intensive_low_cpu**: High memory (>1GB) with low CPU (<30%) - suggests data processing
+
+Patterns are defined in `autoprofiler/patterns/performance.yaml` and can be extended without modifying code.
+
 ---
 
 ## 12. LLM Integration Philosophy
@@ -410,7 +445,7 @@ The system exists to:
 
 ---
 
-## 15. Minimal Reference Implementation (for contributors)
+## 17. Minimal Reference Implementation (for contributors)
 
 The repository includes a lightweight Python package scaffold (`autoprofiler/`) that follows the rules above:
 
