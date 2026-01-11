@@ -45,8 +45,8 @@ AutoProfiler follows a **three-stage pipeline**:
     ↓
 [ Analyzers ]   → structured findings (pattern-based)
     ↓
-[ LLM Reporter ]→ human-readable diagnosis & suggestions
-````
+[ Reporter ]    → human-readable diagnosis & suggestions
+```
 
 Each stage is **strictly decoupled** and communicates through well-defined data structures.
 
@@ -237,23 +237,26 @@ Each collector:
 * Produces a `ProfileArtifact`
 * Must be safe for unknown programs
 
-### Current and planned collectors
+### Available collectors
 
 * **PsutilCollector** (implemented)
 
   * System-level metrics: CPU usage, RSS memory, I/O activity, thread count
+  * Periodic sampling without instrumentation
 
-* **CProfileCollector** (planned / optional)
+* **CProfileCollector** (implemented)
 
   * Uses `python -m cProfile`
   * Collects call counts and cumulative time
-  * Wraps the target command via `Collector.prepare_command`
+  * Wraps the target command via `prepare_command()` method
+  * Produces `.pstats` files for detailed analysis
 
-* **PySpyCollector** (planned / optional)
+* **PySpyCollector** (implemented)
 
   * Sampling-based CPU profiler
   * Low overhead, no source modification
   * Gracefully degrades with a warning when the `py-spy` binary is unavailable
+  * Can generate flamegraph outputs
 
 Collectors should **never interpret results** — only collect and serialize.
 
@@ -325,7 +328,31 @@ See the next section for the canonical pattern list.
 
 ---
 
-## 11. Performance Pattern Knowledge Base
+## 11. LLM Integration Philosophy
+
+LLMs (Codex / GPT) are used for **explanation and synthesis**, NOT raw inference.
+
+LLMs are provided with:
+
+* Structured Findings
+* Performance patterns
+* Selected code snippets (optional)
+* Explicit instructions to:
+
+  * cite evidence
+  * avoid speculation
+  * state uncertainty
+
+LLMs must NOT:
+
+* Guess missing data
+* Claim guaranteed optimizations
+* Modify code unless explicitly enabled
+* Replace analyzers or pattern logic
+
+---
+
+## 12. Performance Pattern Knowledge Base
 
 Performance knowledge is encoded as **explicit patterns**, not hardcoded logic.
 
@@ -394,7 +421,7 @@ Patterns can be extended without modifying code.
 
 ---
 
-## 12. Output and Reports
+## 13. Output and Reports
 
 Primary output formats:
 
@@ -412,7 +439,7 @@ Reports include:
 
 ---
 
-## 13. Design Constraints (for code generation tools)
+## 14. Design Constraints (for code generation tools)
 
 When generating or modifying code (via AI or templates), always respect:
 
@@ -425,28 +452,52 @@ When generating or modifying code (via AI or templates), always respect:
 
 ---
 
-## 14. Expected Evolution & Open Tasks
+## 15. Expected Evolution & Open Tasks
 
 Planned future extensions (high-level):
 
 * Multi-run regression detection and trend analysis
 * Diff-based performance comparison between runs or branches
-* Memory profiling (e.g. `tracemalloc`, `memray`)
+* Enhanced memory profiling (e.g. `tracemalloc`, `memray`)
 * Cross-language support via eBPF and system-level collectors
 * Visualization (HTML views, flamegraph embedding)
 
 Concrete open tasks for contributors:
 
-* Implement and wire up `CProfileCollector` and `PySpyCollector`
 * Extend `ProfileArtifact` schemas for richer metadata (e.g. per-thread stats)
 * Add more declarative patterns (cache behavior, GC activity, I/O patterns)
 * Build a simple CLI front-end (`autoprofiler` entry point) for running profiles without Python code changes
 * Add multi-run storage and comparison API
-* Create sample “bad” workloads with known bottlenecks for regression testing
+* Create sample "bad" workloads with known bottlenecks for regression testing
+* Enhance LLM integration for more sophisticated report generation
 
 ---
 
-## 15. Guiding Philosophy
+## 16. Testing
+
+The project includes several test files in the `tests/` directory:
+
+* `test_autoprofiler_template.py` - Basic template test for profiling any target program
+* `test_new_patterns.py` - Tests for new performance pattern detection
+* `test_extended.py` - Extended tests with longer-running workloads
+* `test_complete_demo.py` - Complete demonstration of all features
+
+Run tests using:
+
+```bash
+# Run all tests
+python -m unittest discover tests
+
+# Run specific test
+python -m unittest tests.test_autoprofiler_template
+
+# Run demo scripts directly
+python tests/test_extended.py
+```
+
+---
+
+## 17. Guiding Philosophy
 
 > AutoProfiler is not an optimizer.
 > It is an **automated performance analyst**.
