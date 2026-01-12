@@ -12,17 +12,11 @@ The core goal of this project is:
 
 This project **does NOT assume**:
 
-* prior knowledge of the target program
-* access to or modification of the target program’s source code
-* specific frameworks, coding styles, or workloads
+- prior knowledge of the target program  
+- access to or modification of the target program’s source code  
+- specific frameworks, coding styles, or workloads  
 
-AutoProfiler is designed as a **black-box / semi-black-box profiler**, similar in philosophy to:
-
-* `perf`
-* `py-spy`
-* `valgrind`
-
-but specialized for **Python ecosystems** and **AI-assisted explanation**.
+AutoProfiler is designed as a **black-box / semi-black-box profiler**, similar in philosophy to tools like `perf`, `py-spy`, or `valgrind`, but specialized for **Python ecosystems** and **AI-assisted explanation**.
 
 ---
 
@@ -30,13 +24,13 @@ but specialized for **Python ecosystems** and **AI-assisted explanation**.
 
 To avoid ambiguity, AutoProfiler explicitly does **NOT** aim to:
 
-* ❌ Fully understand business logic of the target program
-* ❌ Automatically rewrite or refactor code by default
-* ❌ Guarantee performance improvement after suggestions
-* ❌ Depend on decorators, instrumentation, or source modification
-* ❌ Be a full IDE or debugger
+- ❌ Fully understand business logic of the target program  
+- ❌ Automatically rewrite or refactor code by default  
+- ❌ Guarantee performance improvement after suggestions  
+- ❌ Depend on decorators, instrumentation, or source modification  
+- ❌ Be a full IDE or debugger  
 
-Instead, the project focuses on **profiling facts → diagnosis → verifiable guidance**.
+Instead, the project focuses on a pipeline of **profiling facts → diagnosis → verifiable guidance**.
 
 ---
 
@@ -44,7 +38,7 @@ Instead, the project focuses on **profiling facts → diagnosis → verifiable g
 
 AutoProfiler follows a **three-stage pipeline**:
 
-```
+```text
 [ Runner ]
     ↓
 [ Collectors ]  → raw profiling artifacts
@@ -52,7 +46,7 @@ AutoProfiler follows a **three-stage pipeline**:
 [ Analyzers ]   → structured findings (pattern-based)
     ↓
 [ LLM Reporter ]→ human-readable diagnosis & suggestions
-```
+````
 
 Each stage is **strictly decoupled** and communicates through well-defined data structures.
 
@@ -60,7 +54,7 @@ Each stage is **strictly decoupled** and communicates through well-defined data 
 
 ## 4. Target Program Model (Critical Assumption)
 
-The target program is treated as an **opaque executable command**.
+The target program is treated as an **opaque executable command**:
 
 ```text
 TargetProgram = {
@@ -71,6 +65,17 @@ TargetProgram = {
 }
 ```
 
+Key implications:
+
+* The profiler **launches and observes**, but does not interfere.
+* The program may be:
+
+  * a script
+  * a module (`python -m xxx`)
+  * a test suite
+  * a service (short-lived or long-running)
+* The profiler must work **without knowing program internals**.
+
 ---
 
 ## 5. Installation & Environment Setup
@@ -78,8 +83,7 @@ TargetProgram = {
 ### Requirements
 
 * Python ≥ 3.10
-
-* Linux / WSL recommended (for py-spy)
+* Linux / WSL recommended (for `py-spy` and future eBPF-based features)
 
 ### Option A: One-step bootstrap (recommended)
 
@@ -92,12 +96,11 @@ source .venv/bin/activate
 This will:
 
 * Create a virtual environment
-
-* Install all dependencies from requirements.txt
+* Install all dependencies from `requirements.txt`
 
 ### Option B: Manual setup
 
-#### Create an isolated environment
+Create an isolated environment:
 
 ```bash
 python -m venv .venv
@@ -105,20 +108,18 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 ```
 
-#### Install runtime dependencies
+Install runtime dependencies:
 
-`autoprofiler` currently relies on a handful of third-party libraries:
+Core runtime libraries:
 
 * [`psutil`](https://pypi.org/project/psutil/) — used by `PsutilCollector` for CPU and memory sampling
 * [`PyYAML`](https://pypi.org/project/PyYAML/) — used to load declarative performance patterns
-
-Install them directly:
 
 ```bash
 python -m pip install psutil pyyaml
 ```
 
-> Note: Additional collectors (e.g., cProfile- or py-spy-based) may introduce optional dependencies; consult their module docstrings before use.
+Optional / future collectors may require additional dependencies (e.g. `py-spy`). Check the corresponding collector module docstring for details.
 
 To validate the installation, run a lightweight import and bytecode compilation check:
 
@@ -130,16 +131,16 @@ python -m compileall autoprofiler
 
 ## 6. Minimal Reference Implementation (for contributors)
 
-The repository includes a lightweight Python package scaffold (`autoprofiler/`) that follows the rules above:
+The repository includes a lightweight Python package scaffold (`autoprofiler/`) that follows the design rules above:
 
-* `autoprofiler.models` defines the immutable schemas (`TargetProgram`, `ProfileArtifact`, `Finding`, etc.).
-* `autoprofiler.runner.Runner` launches opaque commands, captures stdout/stderr, and invokes collectors without modifying the target program.
-* `autoprofiler.collectors.PsutilCollector` observes CPU and memory usage for an existing PID using periodic sampling (no instrumentation).
-* `autoprofiler.patterns.loader` reads declarative YAML pattern definitions (see `autoprofiler/patterns/performance.yaml`).
-* `autoprofiler.analyzers.PatternMatchingAnalyzer` deterministically matches collector metrics against pattern thresholds to emit structured findings.
-* `autoprofiler.reporting.reporter` renders `report.md`-style text and `findings.json` payloads from a profiling session.
+* `autoprofiler.models` defines the immutable schemas (`TargetProgram`, `ProfileArtifact`, `Finding`, etc.)
+* `autoprofiler.runner.Runner` launches opaque commands, captures stdout/stderr, and invokes collectors without modifying the target program
+* `autoprofiler.collectors.psutil_collector.PsutilCollector` observes CPU and memory usage for an existing PID using periodic sampling (no instrumentation)
+* `autoprofiler.patterns.loader` reads declarative YAML pattern definitions (see `autoprofiler/patterns/performance.yaml`)
+* `autoprofiler.analyzers.simple_analyzer.PatternMatchingAnalyzer` deterministically matches collector metrics against pattern thresholds to emit structured findings
+* `autoprofiler.reporting.reporter` renders `report.md`-style text and `findings.json` payloads from a profiling session
 
-### Quickstart
+### Python quickstart
 
 ```python
 from pathlib import Path
@@ -154,28 +155,50 @@ from autoprofiler.reporting.reporter import render_findings_json, render_markdow
 
 target = TargetProgram(command=["python", "-c", "print('hello')"], timeout=5)
 collector = PsutilCollector(sample_interval=0.25)
+
+# Run the target and collect artifacts
 session = Runner().run(target, collectors=[collector])
 
+# Load performance patterns and run analysis
 patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
 analyzer = PatternMatchingAnalyzer(patterns)
 session.findings = analyzer.analyze(session.artifacts)
 
+# Render human-readable and machine-readable reports
 print(render_markdown(session))
 print(render_findings_json(session))
 ```
 
 This quickstart keeps the **black-box profiling** philosophy intact: it launches the target command, observes metrics externally, matches them against declarative patterns, and produces reproducible reports.
 
-Key implications:
+### Demo workload
 
-* The profiler **launches and observes**, but does not interfere.
-* The program may be:
+For a simple CPU-heavy demo workload that exercises the pipeline end-to-end:
 
-  * a script
-  * a module (`python -m xxx`)
-  * a test suite
-  * a service (short-lived or long-running)
-* The profiler must work **without knowing program internals**.
+```bash
+python -m autoprofiler.demo_profile
+```
+
+This combines psutil sampling with a cProfile-based collector (if available), loads patterns from `autoprofiler/patterns/performance.yaml`, and prints both markdown and JSON findings.
+
+### Run AutoProfiler via the template test
+
+You can also launch the profiling pipeline directly from the terminal using the template test in `tests/test_autoprofiler_template.py`.
+
+Run the default inline program:
+
+```bash
+python -m unittest tests.test_autoprofiler_template
+```
+
+Point the profiler at your own program (any executable command works):
+
+```bash
+AUTOPROFILER_TARGET="python my_script.py --flag" \
+  python -m unittest tests.test_autoprofiler_template
+```
+
+The template test prints the generated markdown report to stdout so you can quickly inspect findings without wiring up additional code.
 
 ---
 
@@ -214,26 +237,23 @@ Each collector:
 * Produces a `ProfileArtifact`
 * Must be safe for unknown programs
 
-### Expected Collectors (Initial MVP)
+### Current and planned collectors
 
-* **cProfileCollector**
+* **PsutilCollector** (implemented)
+
+  * System-level metrics: CPU usage, RSS memory, I/O activity, thread count
+
+* **CProfileCollector** (planned / optional)
 
   * Uses `python -m cProfile`
   * Collects call counts and cumulative time
   * Wraps the target command via `Collector.prepare_command`
-* **PySpyCollector**
+
+* **PySpyCollector** (planned / optional)
 
   * Sampling-based CPU profiler
   * Low overhead, no source modification
   * Gracefully degrades with a warning when the `py-spy` binary is unavailable
-* **PsutilCollector**
-
-  * System-level metrics:
-
-    * CPU usage
-    * RSS memory
-    * I/O activity
-    * thread count
 
 Collectors should **never interpret results** — only collect and serialize.
 
@@ -249,7 +269,7 @@ ProfileArtifact = {
     "type": "cpu-sampling",
     "timestamp": "...",
     "raw_files": [...],
-    "metrics": {...}
+    "metrics": {...},
 }
 ```
 
@@ -265,7 +285,7 @@ Artifacts must be:
 
 Analyzers consume artifacts and generate **Findings**.
 
-### Key Design Principle
+### Key design principle
 
 > Analyzers do not understand business logic.
 > They understand **performance patterns**.
@@ -278,7 +298,7 @@ Examples:
 * Hot call paths dominating runtime
 * Abnormal variance across runs
 
-### Finding Structure
+### Finding structure
 
 ```python
 Finding = {
@@ -287,11 +307,11 @@ Finding = {
     "evidence": {
         "call_count": 1_200_000,
         "avg_time_us": 1.2,
-        "total_time_s": 1.44
+        "total_time_s": 1.44,
     },
     "confidence": 0.82,
     "pattern_id": "high_call_count_small_fn",
-    "suggestions": [...]
+    "suggestions": [...],
 }
 ```
 
@@ -300,6 +320,8 @@ All findings must:
 * Be backed by quantitative evidence
 * Be explainable without code context
 * Be reproducible
+
+See the next section for the canonical pattern list.
 
 ---
 
@@ -328,67 +350,51 @@ This enables:
 * Extensibility
 * LLM-friendly reasoning
 
-### Available Performance Patterns
+### Available performance patterns
 
-AutoProfiler includes a comprehensive set of performance patterns organized by category:
+Patterns are organized by category (see `autoprofiler/patterns/performance.yaml`):
 
-#### CPU-Related Patterns
-* **high_cpu_usage**: Sustained high CPU consumption (>75%)
-* **low_cpu_high_io**: Low CPU usage suggesting IO-bound workload (<20%)
-* **cpu_variance_high**: High CPU variance indicating inconsistent workload
+#### CPU-related patterns
 
-#### Function Call Patterns (CProfile-based)
-* **high_call_count_small_fn**: Excessive small function invocations (>1M calls, <5s total)
-* **single_function_dominates**: One function consumes >50% of execution time
-* **high_calls_low_time**: Many calls but low total time (overhead-dominated)
+* `high_cpu_usage`: Sustained high CPU consumption (> 75%)
+* `low_cpu_high_io`: Low CPU usage suggesting IO-bound workload (< 20%)
+* `cpu_variance_high`: High CPU variance indicating inconsistent workload
 
-#### Memory Patterns
-* **memory_growth_risk**: RSS memory exceeds threshold (>500MB)
-* **vms_rss_ratio_high**: High virtual-to-physical memory ratio (>4.0, suggests fragmentation)
-* **memory_growth_trend**: Upward memory trend during execution (potential leak)
+#### Function call patterns (cProfile-based)
 
-#### Execution Time Patterns
-* **long_execution_time**: Execution exceeds expected duration (>10s)
+* `high_call_count_small_fn`: Excessive small function invocations (> 1M calls, < 5s total)
+* `single_function_dominates`: One function consumes > 50% of execution time
+* `high_calls_low_time`: Many calls but low total time (overhead-dominated)
 
-#### Hot Function Patterns
-* **top_functions_concentration**: Top functions consume >70% of time
-* **hot_function_high_call_count**: Hot function has unusually high call count (>100K)
+#### Memory patterns
 
-#### Sampling Patterns
-* **insufficient_sampling**: Too few samples collected (<5 samples)
+* `memory_growth_risk`: RSS memory exceeds threshold (> 500MB)
+* `vms_rss_ratio_high`: High virtual-to-physical memory ratio (> 4.0, suggests fragmentation)
+* `memory_growth_trend`: Upward memory trend during execution (potential leak)
 
-#### Combined Patterns (Multi-Artifact)
-* **cpu_intensive_few_calls**: High CPU (>70%) with few calls (<10K) - suggests tight loops
-* **memory_intensive_low_cpu**: High memory (>1GB) with low CPU (<30%) - suggests data processing
+#### Execution time patterns
 
-Patterns are defined in `autoprofiler/patterns/performance.yaml` and can be extended without modifying code.
+* `long_execution_time`: Execution exceeds expected duration (> 10s)
 
----
+#### Hot function patterns
 
-## 12. LLM Integration Philosophy
+* `top_functions_concentration`: Top functions consume > 70% of time
+* `hot_function_high_call_count`: Hot function has unusually high call count (> 100K)
 
-LLMs (Codex / GPT) are used for **explanation and synthesis**, NOT raw inference.
+#### Sampling patterns
 
-LLMs are provided with:
+* `insufficient_sampling`: Too few samples collected (< 5 samples)
 
-* Structured Findings
-* Performance patterns
-* Selected code snippets (optional)
-* Explicit instructions to:
+#### Combined patterns (multi-artifact)
 
-  * cite evidence
-  * avoid speculation
-  * state uncertainty
+* `cpu_intensive_few_calls`: High CPU (> 70%) with few calls (< 10K) — suggests tight loops
+* `memory_intensive_low_cpu`: High memory (> 1GB) with low CPU (< 30%) — suggests data-heavy processing
 
-LLMs must NOT:
-
-* Guess missing data
-* Claim guaranteed optimizations
-* Modify code unless explicitly enabled
+Patterns can be extended without modifying code.
 
 ---
 
-## 13. Output and Reports
+## 12. Output and Reports
 
 Primary output formats:
 
@@ -396,7 +402,7 @@ Primary output formats:
 * `findings.json` (machine-readable)
 * raw profiling artifacts (for reproducibility)
 
-Reports must include:
+Reports include:
 
 * Summary of observed behavior
 * Key bottlenecks
@@ -406,9 +412,9 @@ Reports must include:
 
 ---
 
-## 14. Design Constraints (For Codex)
+## 13. Design Constraints (for code generation tools)
 
-When generating or modifying code, **always respect**:
+When generating or modifying code (via AI or templates), always respect:
 
 * Modular architecture
 * Explicit data schemas
@@ -419,19 +425,28 @@ When generating or modifying code, **always respect**:
 
 ---
 
-## 15. Expected Evolution
+## 14. Expected Evolution & Open Tasks
 
-Planned future extensions:
+Planned future extensions (high-level):
 
-* Multi-run regression detection
-* Diff-based performance comparison
-* Memory profiling (tracemalloc / memray)
-* Cross-language support via eBPF
-* Visualization (HTML / flamegraph embedding)
+* Multi-run regression detection and trend analysis
+* Diff-based performance comparison between runs or branches
+* Memory profiling (e.g. `tracemalloc`, `memray`)
+* Cross-language support via eBPF and system-level collectors
+* Visualization (HTML views, flamegraph embedding)
+
+Concrete open tasks for contributors:
+
+* Implement and wire up `CProfileCollector` and `PySpyCollector`
+* Extend `ProfileArtifact` schemas for richer metadata (e.g. per-thread stats)
+* Add more declarative patterns (cache behavior, GC activity, I/O patterns)
+* Build a simple CLI front-end (`autoprofiler` entry point) for running profiles without Python code changes
+* Add multi-run storage and comparison API
+* Create sample “bad” workloads with known bottlenecks for regression testing
 
 ---
 
-## 16. Guiding Philosophy
+## 15. Guiding Philosophy
 
 > AutoProfiler is not an optimizer.
 > It is an **automated performance analyst**.
@@ -443,86 +458,3 @@ The system exists to:
 * Improve explainability
 * Enable reproducible performance engineering
 
----
-
-## 17. Minimal Reference Implementation (for contributors)
-
-The repository includes a lightweight Python package scaffold (`autoprofiler/`) that follows the rules above:
-
-* `autoprofiler.models` defines the immutable schemas (`TargetProgram`, `ProfileArtifact`, `Finding`, etc.).
-* `autoprofiler.runner.Runner` launches opaque commands, captures stdout/stderr, and invokes collectors without modifying the target program.
-* `autoprofiler.collectors.PsutilCollector` observes CPU and memory usage for an existing PID using periodic sampling (no instrumentation).
-* `autoprofiler.patterns.loader` reads declarative YAML pattern definitions (see `autoprofiler/patterns/performance.yaml`).
-* `autoprofiler.analyzers.PatternMatchingAnalyzer` deterministically matches collector metrics against pattern thresholds to emit structured findings.
-* `autoprofiler.reporting.reporter` renders `report.md`-style text and `findings.json` payloads from a profiling session.
-
-### Quickstart
-
-```python
-from pathlib import Path
-
-from autoprofiler.runner import Runner
-from autoprofiler.models import TargetProgram
-from autoprofiler.collectors.psutil_collector import PsutilCollector
-from autoprofiler.patterns.loader import load_patterns
-from autoprofiler.analyzers.simple_analyzer import PatternMatchingAnalyzer
-from autoprofiler.reporting.reporter import render_findings_json, render_markdown
-
-
-target = TargetProgram(command=["python", "-c", "print('hello')"], timeout=5)
-collector = PsutilCollector(sample_interval=0.25)
-session = Runner().run(target, collectors=[collector])
-
-patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
-analyzer = PatternMatchingAnalyzer(patterns)
-session.findings = analyzer.analyze(session.artifacts)
-
-print(render_markdown(session))
-print(render_findings_json(session))
-```
-
-For a deeper CPU view, you can wrap the target with `CProfileCollector` and also
-add `PySpyCollector` (requires the `py-spy` binary in `PATH`) to capture sampling
-data without code changes.
-
-This quickstart keeps the **black-box profiling** philosophy intact: it launches the target command, observes metrics externally, matches them against declarative patterns, and produces reproducible reports.
-
-Key implications:
-
-* The profiler **launches and observes**, but does not interfere.
-* The program may be:
-
-  * a script
-  * a module (`python -m xxx`)
-  * a test suite
-  * a service (short-lived or long-running)
-* The profiler must work **without knowing program internals**.
-
-### Demo workload
-
-Run `python -m autoprofiler.demo_profile` to see psutil sampling combined with
-`CProfileCollector` on a CPU-heavy workload that runs for a few seconds. The
-demo loads patterns from `autoprofiler/patterns/performance.yaml` and prints the
-resulting markdown and JSON findings so you can validate the pipeline end to
-end.
-
-### Run AutoProfiler from the terminal
-
-You can launch the full profiling pipeline directly from the terminal using the
-template test in `tests/test_autoprofiler_template.py`. The test profiles a
-tiny inline Python command by default so you can see the end-to-end output, and
-it can be pointed at any executable command by setting an environment variable.
-
-```bash
-# Run the default inline program
-python -m unittest tests.test_autoprofiler_template
-
-# Point the profiler at your own program (any executable command works)
-AUTOPROFILER_TARGET="python my_script.py --flag" \
-  python -m unittest tests.test_autoprofiler_template
-```
-
-The template test will print the generated markdown report to stdout so you can
-quickly inspect findings without wiring up additional code.
-
----
