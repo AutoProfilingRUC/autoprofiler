@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoProfiler - Python性能分析工具</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-chart-line"></i> AutoProfiler</h1>
+            <p class="subtitle">Python代码性能分析工具 - 在线版</p>
+        </header>
+        
+        <main>
+            <div class="upload-section">
+                <h2><i class="fas fa-upload"></i> 上传Python文件进行分析</h2>
+                <p>上传您的Python文件，AutoProfiler将自动分析性能瓶颈并提供优化建议</p>
+                
+                <div class="upload-options">
+                    <div class="upload-option active" id="tab-file">
+                        <i class="fas fa-file-code"></i> 文件上传
+                    </div>
+                    <div class="upload-option" id="tab-url">
+                        <i class="fas fa-link"></i> URL上传
+                    </div>
+                    <div class="upload-option" id="tab-code">
+                        <i class="fas fa-keyboard"></i> 直接输入代码
+                    </div>
+                </div>
+                
+                <!-- 文件上传区域 -->
+                <div class="upload-area active" id="area-file">
+                    <div class="drop-zone" id="dropZone">
+                        <i class="fas fa-cloud-upload-alt fa-3x"></i>
+                        <p>拖放Python文件到此处 或</p>
+                        <button class="btn btn-primary" id="selectFileBtn">
+                            <i class="fas fa-folder-open"></i> 选择文件
+                        </button>
+                        <input type="file" id="fileInput" accept=".py,.pyw,.txt" style="display: none;">
+                        <p class="file-info">支持 .py, .pyw, .txt 文件，最大50MB</p>
+                    </div>
+                </div>
+                
+                <!-- URL上传区域 -->
+                <div class="upload-area" id="area-url">
+                    <div class="url-input-area">
+                        <input type="text" id="urlInput" placeholder="输入Python文件的URL (例如: https://example.com/script.py)">
+                        <button class="btn btn-primary" id="fetchUrlBtn">
+                            <i class="fas fa-download"></i> 从URL分析
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 代码输入区域 -->
+                <div class="upload-area" id="area-code">
+                    <div class="code-input-area">
+                        <textarea id="codeInput" placeholder="输入或粘贴Python代码..."></textarea>
+                        <button class="btn btn-primary" id="analyzeCodeBtn">
+                            <i class="fas fa-play"></i> 分析代码
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="progress-container" id="progressContainer" style="display: none;">
+                    <div class="progress-header">
+                        <h3><i class="fas fa-spinner fa-spin"></i> 正在分析...</h3>
+                        <span id="progressText">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+                    </div>
+                    <div class="analysis-info" id="analysisInfo">
+                        <p><i class="fas fa-file"></i> 文件: <span id="fileName">-</span></p>
+                        <p><i class="fas fa-clock"></i> 开始时间: <span id="startTime">-</span></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <h2><i class="fas fa-chart-bar"></i> 分析结果</h2>
+                
+                <div class="results-header">
+                    <div class="result-summary">
+                        <div class="summary-item">
+                            <i class="fas fa-clock"></i>
+                            <div>
+                                <span class="label">运行时间</span>
+                                <span class="value" id="summaryDuration">-</span>
+                            </div>
+                        </div>
+                        <div class="summary-item">
+                            <i class="fas fa-microchip"></i>
+                            <div>
+                                <span class="label">退出码</span>
+                                <span class="value" id="summaryExitCode">-</span>
+                            </div>
+                        </div>
+                        <div class="summary-item">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div>
+                                <span class="label">发现问题</span>
+                                <span class="value" id="summaryFindings">-</span>
+                            </div>
+                        </div>
+                        <div class="summary-item">
+                            <i class="fas fa-file"></i>
+                            <div>
+                                <span class="label">文件大小</span>
+                                <span class="value" id="summaryFileSize">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="result-actions">
+                        <button class="btn btn-success" id="downloadReportBtn">
+                            <i class="fas fa-download"></i> 下载报告
+                        </button>
+                        <button class="btn btn-secondary" id="copyReportBtn">
+                            <i class="far fa-copy"></i> 复制报告
+                        </button>
+                        <button class="btn btn-outline" id="newAnalysisBtn">
+                            <i class="fas fa-plus"></i> 新的分析
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="results-tabs">
+                    <div class="results-tab active" id="tab-report">
+                        <i class="fas fa-file-alt"></i> 完整报告
+                    </div>
+                    <div class="results-tab" id="tab-findings">
+                        <i class="fas fa-search"></i> 性能问题
+                    </div>
+                    <div class="results-tab" id="tab-raw">
+                        <i class="fas fa-code"></i> 原始数据
+                    </div>
+                </div>
+                
+                <div class="results-content">
+                    <div class="result-pane active" id="pane-report">
+                        <pre id="reportContent"></pre>
+                    </div>
+                    
+                    <div class="result-pane" id="pane-findings">
+                        <div id="findingsContent">
+                            <p class="no-data">没有发现性能问题</p>
+                        </div>
+                    </div>
+                    
+                    <div class="result-pane" id="pane-raw">
+                        <pre id="rawDataContent"></pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="recent-analyses" id="recentAnalyses" style="display: none;">
+                <h2><i class="fas fa-history"></i> 最近的分析</h2>
+                <div id="recentAnalysesList"></div>
+            </div>
+            
+            <div class="info-section">
+                <h2><i class="fas fa-info-circle"></i> 关于 AutoProfiler</h2>
+                <div class="info-cards">
+                    <div class="info-card">
+                        <i class="fas fa-bolt"></i>
+                        <h3>性能分析</h3>
+                        <p>自动识别代码中的性能瓶颈，包括CPU使用、内存消耗、函数调用等。</p>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-lightbulb"></i>
+                        <h3>智能建议</h3>
+                        <p>基于性能模式数据库，提供具体的优化建议和改进方案。</p>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-shield-alt"></i>
+                        <h3>安全可靠</h3>
+                        <p>在隔离环境中运行代码，确保您的代码和数据安全。</p>
+                    </div>
+                    <div class="info-card">
+                        <i class="fas fa-download"></i>
+                        <h3>报告导出</h3>
+                        <p>生成详细的Markdown报告，支持下载和分享分析结果。</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>AutoProfiler Web 版本 1.0.0 | 
+                <a href="https://github.com/yourusername/autoprofiler" target="_blank">
+                    <i class="fab fa-github"></i> GitHub
+                </a>
+            </p>
+            <p class="copyright">© 2024 AutoProfiler Team. 仅供学习和测试使用。</p>
+        </footer>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
