@@ -1,148 +1,110 @@
-# ===== CPU Related Patterns =====
+# ===== CPU Related Patterns / CPU 相关模式 =====
 - id: high_cpu_usage
-  meaning: "Sustained CPU consumption observed"
+  meaning: "Sustained CPU consumption observed / 观察到持续的高 CPU 消耗"
   condition:
     cpu_percent_avg: "> 75"
   suggestions:
-    - "Inspect hot paths with sampling profilers like py-spy."
-    - "Look for busy loops or unnecessary polling."
+    - "Inspect hot paths with sampling profilers like py-spy. / 使用 py-spy 等采样分析器检查热点路径。"
+    
+    - "Look for busy loops or unnecessary polling. / 检查是否存在忙循环或不必要的轮询。"
 
 - id: low_cpu_high_io
-  meaning: "Low CPU usage suggests IO-bound workload or blocking operations"
+  meaning: "Low CPU usage suggests IO-bound workload or blocking operations / 低 CPU 占用可能暗示 I/O 密集型任务或阻塞操作"
   condition:
     cpu_percent_avg: "< 20"
     sample_count: "> 10"
   suggestions:
-    - "Check for blocking I/O operations (file, network, database)."
-    - "Consider async/await patterns if using synchronous I/O."
-    - "Profile I/O wait time separately."
+    - "Check for blocking I/O operations (file, network, database). / 检查阻塞式 I/O 操作（文件、网络、数据库）。"
+    
+    - "Consider async/await patterns if using synchronous I/O. / 如果使用了同步 I/O，考虑改用 async/await 异步模式。"
+    
+    - "Profile I/O wait time separately. / 单独分析 I/O 等待时间。"
 
 - id: cpu_variance_high
-  meaning: "High CPU usage variance indicates inconsistent workload distribution"
+  meaning: "High CPU usage variance indicates inconsistent workload distribution / CPU 占用波动较大，表明负载分布不均"
   condition:
     cpu_percent_max: "> 80"
     cpu_percent_avg: "< 50"
   suggestions:
-    - "Investigate bursty workloads or periodic tasks."
-    - "Consider workload smoothing or batching strategies."
+    - "Investigate bursty workloads or periodic tasks. / 调查突发性工作负载或周期性任务。"
+    - "Consider workload smoothing or batching strategies. / 考虑工作负载平滑处理或批处理策略。"
 
-# ===== Function Call Related Patterns (CProfile) =====
+# ===== Function Call Related Patterns / 函数调用相关模式 =====
 - id: high_call_count_small_fn
-  meaning: "Excessive invocation of small functions causes interpreter overhead"
+  meaning: "Excessive invocation of small functions causes interpreter overhead / 小函数的频繁调用导致了严重的解释器开销"
   condition:
     total_calls: "> 1000000"
-    total_time: "< 5"
   suggestions:
-    - "Consider inlining frequently called small functions."
-    - "Batch operations to reduce call overhead."
-    - "Use list comprehensions or vectorized operations."
+    - "Inline critical small functions if possible. / 如果可能，将关键的小函数进行内联。"
+    - "Check for recursive calls or deep nesting. / 检查递归调用或深层嵌套。"
 
-- id: single_function_dominates
-  meaning: "One function consumes disproportionate execution time"
-  condition:
-    function_time_ratio: "> 0.5"
-    total_time: "> 1"
-  suggestions:
-    - "Focus optimization efforts on the identified hot function."
-    - "Consider algorithmic improvements or caching."
-    - "Check if the function can be parallelized."
-
-- id: high_calls_low_time
-  meaning: "Many function calls but low total time suggests overhead-dominated execution"
-  condition:
-    total_calls: "> 500000"
-    total_time: "< 0.5"
-  suggestions:
-    - "Reduce function call overhead through inlining or batching."
-    - "Consider using built-in functions or C extensions."
-
-# ===== Memory Related Patterns =====
-- id: memory_growth_risk
-  meaning: "Resident set size peaks above expected thresholds"
-  condition:
-    rss_bytes_max: "> 500000000"
-  suggestions:
-    - "Review object lifecycles and caching strategies."
-    - "Capture heap snapshots to locate large allocations."
-
-- id: vms_rss_ratio_high
-  meaning: "High virtual memory to RSS ratio suggests memory fragmentation or sparse allocations"
-  condition:
-    vms_rss_ratio: "> 4.0"
-    vms_bytes_max: "> 2000000000"
-  suggestions:
-    - "Investigate memory fragmentation issues."
-    - "Review large sparse data structures."
-    - "Consider memory-mapped files for large datasets."
-
+# ===== Memory Related Patterns / 内存相关模式 =====
 - id: memory_growth_trend
-  meaning: "Memory usage shows upward trend during execution"
+  meaning: "Memory usage shows upward trend during execution / 执行期间内存使用量呈现上升趋势"
   condition:
     memory_growth_trend: "> 0.1"
   suggestions:
-    - "Check for memory leaks or unbounded caches."
-    - "Review object lifecycle management."
-    - "Use memory profilers (tracemalloc, memray) for detailed analysis."
+    - "Check for memory leaks or unbounded caches. / 检查是否存在内存泄漏或未限制大小的缓存。"
+    - "Review object lifecycle management. / 审查对象生命周期管理。"
+    - "Use memory profilers (tracemalloc, memray) for detailed analysis. / 使用内存分析器（如 tracemalloc, memray）进行详细分析。"
 
-# ===== Execution Time Related Patterns =====
+# ===== Execution Time Related Patterns / 执行时间相关模式 =====
 - id: long_execution_time
-  meaning: "Program execution exceeds expected duration"
+  meaning: "Program execution exceeds expected duration / 程序执行时间超过预期持续时间"
   condition:
     total_time: "> 10"
   suggestions:
-    - "Profile with py-spy to identify hot paths."
-    - "Consider parallelization opportunities."
-    - "Review algorithm complexity."
+    - "Profile with py-spy to identify hot paths. / 使用 py-spy 识别热点路径。"
+    - "Consider parallelization opportunities. / 考虑是否存在并行化的机会。"
+    - "Review algorithm complexity. / 审查算法复杂度。"
 
-# ===== Hot Function Patterns =====
+# ===== Hot Function Patterns / 热点函数模式 =====
 - id: top_functions_concentration
-  meaning: "Top N functions consume majority of execution time"
+  meaning: "Top N functions consume majority of execution time / 少数几个函数消耗了绝大部分执行时间"
   condition:
     top_function_ratio: "> 0.7"
     total_time: "> 1"
   suggestions:
-    - "Focus optimization on the identified hot functions."
-    - "Review these functions for algorithmic improvements."
-    - "Consider profiling these functions in isolation."
+    - "Focus optimization on the identified hot functions. / 将优化精力集中在识别出的热点函数上。"
+    - "Review these functions for algorithmic improvements. / 审查这些函数是否有算法改进空间。"
+    - "Consider profiling these functions in isolation. / 考虑对这些函数进行单独分析。"
 
 - id: hot_function_high_call_count
-  meaning: "Hot function has unusually high call count"
+  meaning: "Hot function has unusually high call count / 热点函数的调用次数异常高"
   condition:
     top_function_call_count: "> 100000"
     total_time: "> 1"
   suggestions:
-    - "Review if function calls can be reduced through caching."
-    - "Check for redundant calls in loops."
-    - "Consider memoization or result caching."
+    - "Review if function calls can be reduced through caching. / 检查是否可以通过缓存来减少函数调用。"
+    - "Check for redundant calls in loops. / 检查循环中是否存在冗余调用。"
+    - "Consider memoization or result caching. / 考虑使用记忆化（memoization）或结果缓存。"
 
-# ===== Sampling Related Patterns =====
+# ===== Sampling Related Patterns / 采样相关模式 =====
 - id: insufficient_sampling
-  meaning: "Too few samples collected for reliable analysis"
+  meaning: "Too few samples collected for reliable analysis / 采集的样本过少，无法进行可靠分析"
   condition:
     sample_count: "< 5"
   suggestions:
-    - "Increase sample_interval or execution duration."
-    - "Ensure program runs long enough for meaningful profiling."
+    - "Increase sample_interval or execution duration. / 增加采样频率或延长执行时间。"
+    - "Ensure program runs long enough for meaningful profiling. / 确保程序运行足够长的时间以获得有意义的分析。"
 
-# ===== Combined Patterns (Multi-Artifact) =====
+# ===== Combined Patterns / 组合模式 =====
 - id: cpu_intensive_few_calls
-  meaning: "High CPU usage with few function calls suggests tight loops or native code"
+  meaning: "High CPU usage with few function calls suggests tight loops or native code / 高 CPU 占用伴随少量函数调用，暗示存在紧凑循环或原生代码执行"
   requires_multiple_artifacts: true
   condition:
     cpu_from_system: "> 70"
     calls_from_cpu: "< 10000"
   suggestions:
-    - "Profile with py-spy to see native code execution."
-    - "Review tight loops for optimization opportunities."
-    - "Consider using NumPy or other optimized libraries."
+    - "Profile with py-spy to see native code execution. / 使用 py-spy 查看原生（Native）代码执行情况。"
+    - "Review tight loops for optimization opportunities. / 审查紧凑循环的优化空间。"
+    - "Consider using NumPy or other optimized libraries. / 考虑使用 NumPy 或其他经过优化的库。"
 
 - id: memory_intensive_low_cpu
-  meaning: "High memory usage with low CPU suggests data processing or caching workload"
-  requires_multiple_artifacts: true
+  meaning: "High memory usage with low CPU suggests data processing or caching workload / 高内存占用伴随低 CPU 占用，暗示数据处理或缓存任务"
   condition:
-    memory_from_system: "> 1000000000"
-    cpu_from_system: "< 30"
+    memory_usage_avg: "> 500" # 假设单位为 MB
+    cpu_percent_avg: "< 15"
   suggestions:
-    - "Review data structure choices and sizes."
-    - "Check for unnecessary data copying."
-    - "Consider streaming or chunked processing."
+    - "Review data structures for memory efficiency. / 审查数据结构的内存效率。"
+    - "Check if datasets can be processed in chunks. / 检查是否可以分块处理数据集。"
