@@ -8,6 +8,7 @@ results are reproducible and can be re-analyzed later.
 
 from __future__ import annotations
 
+import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,8 @@ import pstats
 
 from ..models import ProfileArtifact
 from .base import Collector
+
+logger = logging.getLogger(__name__)
 
 
 class CProfileCollector(Collector):
@@ -26,6 +29,7 @@ class CProfileCollector(Collector):
         self.output_dir = output_dir or Path.cwd()
         self.top_n = top_n
         self._output_file: Optional[Path] = None
+        self._command_line: Optional[List[str]] = None
 
     def prepare_command(self, command: List[str]) -> List[str]:
         """Prefix the target command with ``python -m cProfile``.
@@ -36,13 +40,35 @@ class CProfileCollector(Collector):
 
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
         self._output_file = Path(self.output_dir) / f"cprofile_{timestamp}.pstats"
-        return [sys.executable, "-m", "cProfile", "-o", str(self._output_file), *command]
+        if command and _looks_like_python(command[0]):
+            wrapped = [
+                command[0],
+                "-m",
+                "cProfile",
+                "-o",
+                str(self._output_file),
+                *command[1:],
+            ]
+        else:
+            wrapped = [
+                sys.executable,
+                "-m",
+                "cProfile",
+                "-o",
+                str(self._output_file),
+                *command,
+            ]
+        self._command_line = wrapped
+        logger.debug("CProfileCollector wrapping command: %s", self._command_line)
+        return list(self._command_line)
 
     def start(self, pid: int | List[int]) -> None:  # noqa: ARG002 - pid recorded for interface compliance
         self._started_at = datetime.now(timezone.utc)
 
     def stop(self) -> ProfileArtifact:
         metrics = self._extract_metrics()
+        if self._command_line:
+            metrics["command_line"] = list(self._command_line)
         raw_files: List[str] = []
         if self._output_file and self._output_file.exists():
             raw_files.append(str(self._output_file))
@@ -55,18 +81,75 @@ class CProfileCollector(Collector):
         )
 
     def _extract_metrics(self) -> Dict[str, Any]:
+        warnings: List[str] = []
+        status = "ok"
+        reason: Optional[str] = None
         if not self._output_file or not self._output_file.exists():
-            return {"total_calls": 0.0, "total_time": 0.0, "top_functions": []}
+            warnings.append("cProfile output missing (prof file missing)")
+            status = "missing"
+            reason = "prof file missing"
+            return {
+                "total_calls": 0.0,
+                "total_time": 0.0,
+                "top_functions": [],
+                "status": status,
+                "reason": reason,
+                "warnings": warnings,
+                "cprofile_empty": 1.0,
+            }
 
-        stats = pstats.Stats(str(self._output_file))
+        if self._output_file.stat().st_size == 0:
+            warnings.append(
+                "cProfile output file empty; target may have exited before profiler started"
+            )
+            status = "empty_file"
+            reason = "prof file empty"
+            return {
+                "total_calls": 0.0,
+                "total_time": 0.0,
+                "top_functions": [],
+                "status": status,
+                "reason": reason,
+                "warnings": warnings,
+                "cprofile_empty": 1.0,
+            }
+
+        try:
+            stats = pstats.Stats(str(self._output_file))
+        except Exception as exc:  # noqa: BLE001 - surface parsing failures to report
+            warnings.append(f"cProfile stats parse failed: {exc}")
+            status = "parse_error"
+            reason = "stats parse failed"
+            return {
+                "total_calls": 0.0,
+                "total_time": 0.0,
+                "top_functions": [],
+                "status": status,
+                "reason": reason,
+                "warnings": warnings,
+                "cprofile_empty": 1.0,
+            }
+
         total_calls = float(stats.total_calls)
         total_time = float(stats.total_tt)
 
         top_functions = self._top_functions(stats)
+        cprofile_empty = 1.0 if total_calls == 0.0 and total_time == 0.0 else 0.0
+        if cprofile_empty:
+            status = "empty"
+            reason = "stats empty"
+            warnings.append(
+                "cProfile stats empty; Python work may be in child processes or native extensions"
+            )
+
         return {
             "total_calls": total_calls,
             "total_time": total_time,
             "top_functions": top_functions,
+            "status": status,
+            "reason": reason,
+            "warnings": warnings,
+            "cprofile_empty": cprofile_empty,
         }
 
     def _top_functions(self, stats: pstats.Stats) -> List[Dict[str, Any]]:
@@ -84,3 +167,10 @@ class CProfileCollector(Collector):
                 }
             )
         return top_entries
+
+
+def _looks_like_python(executable: str) -> bool:
+    name = Path(executable).name
+    if executable == sys.executable:
+        return True
+    return name == "python" or name.startswith("python")

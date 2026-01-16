@@ -186,6 +186,22 @@ python -m autoprofiler.demo_profile
 
 This combines psutil sampling with a cProfile-based collector (if available), loads patterns from `autoprofiler/patterns/performance.yaml`, and prints both markdown and JSON findings.
 
+### Root Cause + Fix: Empty cProfile Stats with High CPU
+
+When the target workload spends CPU in child processes (e.g., multiprocessing, subprocesses, or native extensions), the parent process wrapped by `python -m cProfile` can emit empty or misleading stats. AutoProfiler now detects this condition, reports explicit warnings, and avoids incorrect "few calls => native code" inferences when cProfile reports empty stats. The psutil process collector can also surface child-heavy CPU usage so you can decide to aggregate metrics or profile children with sampling tools. Use `--include-children` to aggregate process-tree CPU in system metrics.
+
+#### Example validation commands
+
+```bash
+# Single-process CPU workload (cProfile should show non-empty stats)
+autoprofiler run --collect psutil,cprofile -- \\
+  python tests/fixtures/cprofile_workload.py --mode single --duration 1.5
+
+# Multi-process workload (child CPU should be detected; cProfile may be empty/misleading)
+autoprofiler run --collect psutil,cprofile --include-children -- \\
+  python tests/fixtures/cprofile_workload.py --mode multi --duration 1.5
+```
+
 ### Run AutoProfiler via the template test
 
 You can also launch the profiling pipeline directly from the terminal using the template test in `tests/test_autoprofiler_template.py`.
