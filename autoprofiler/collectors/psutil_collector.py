@@ -34,9 +34,12 @@ class PsutilCollector(Collector):
         self._samples: List[Dict[str, float]] = []
         self._pid: Optional[int] = None
 
-    def start(self, pid: int) -> None:
+    def start(self, pid: int | List[int]) -> None:
         _ensure_psutil_available()
-        self._pid = pid
+        if isinstance(pid, list):
+            self._pid = pid[0] if pid else None
+        else:
+            self._pid = pid
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._sample_loop, daemon=True)
         self._thread.start()
@@ -58,6 +61,8 @@ class PsutilCollector(Collector):
     def _sample_loop(self) -> None:
         import psutil  # noqa: WPS433 - imported here to respect optional dependency resolution
 
+        if self._pid is None:
+            return
         process = psutil.Process(self._pid)
         while not self._stop_event.is_set():
             try:
