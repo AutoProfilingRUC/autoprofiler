@@ -121,6 +121,11 @@ python -m pip install psutil pyyaml
 
 Optional / future collectors may require additional dependencies (e.g. `py-spy`). Check the corresponding collector module docstring for details.
 
+Web UI dependencies (if you run `web_app.py`):
+
+* [`Flask`](https://pypi.org/project/Flask/)
+* [`flask-cors`](https://pypi.org/project/flask-cors/)
+
 To validate the installation, run a lightweight import and bytecode compilation check:
 
 ```bash
