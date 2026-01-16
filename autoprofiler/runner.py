@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
 from typing import Iterable, List
 
@@ -68,3 +69,39 @@ class Runner:
         if target.env:
             env.update(target.env)
         return env
+
+
+class AttachRunner:
+    """Attach to running PIDs without spawning a subprocess."""
+
+    def run(
+        self, pids: List[int], duration: float, collectors: Iterable[Collector]
+    ) -> ProfilingSession:
+        started_at = datetime.now(timezone.utc)
+        artifacts: List[ProfileArtifact] = []
+
+        for collector in collectors:
+            collector.start(pids)
+
+        try:
+            time.sleep(duration)
+        finally:
+            for collector in collectors:
+                artifacts.append(collector.stop())
+
+        finished_at = datetime.now(timezone.utc)
+        execution = ExecutionResult(
+            pid=pids[0] if pids else None,
+            returncode=None,
+            started_at=started_at,
+            finished_at=finished_at,
+            stdout="",
+            stderr="",
+        )
+
+        return ProfilingSession(
+            target=TargetProgram(command=[], cwd=None, env=None, timeout=None),
+            execution=execution,
+            artifacts=artifacts,
+            findings=[],
+        )
