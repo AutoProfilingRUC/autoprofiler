@@ -38,7 +38,7 @@ class CProfileCollector(Collector):
         self._output_file = Path(self.output_dir) / f"cprofile_{timestamp}.pstats"
         return [sys.executable, "-m", "cProfile", "-o", str(self._output_file), *command]
 
-    def start(self, pid: int) -> None:  # noqa: ARG002 - pid recorded for interface compliance
+    def start(self, pid: int | List[int]) -> None:  # noqa: ARG002 - pid recorded for interface compliance
         self._started_at = datetime.now(timezone.utc)
 
     def stop(self) -> ProfileArtifact:
