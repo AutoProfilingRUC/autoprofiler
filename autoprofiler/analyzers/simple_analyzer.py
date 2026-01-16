@@ -293,6 +293,9 @@ class PatternMatchingAnalyzer(Analyzer):
         """从指定category的artifact中获取指标。"""
         for artifact in artifacts:
             if artifact.category == category and metric_name in artifact.metrics:
+                status = artifact.metrics.get("status")
+                if status and status != "ok":
+                    continue
                 return self._get_numeric_value(artifact.metrics[metric_name])
         return None
 

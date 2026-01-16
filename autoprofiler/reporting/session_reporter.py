@@ -23,21 +23,36 @@ def build_session_report(
     summary: Dict[str, object] = {}
     warnings: List[str] = []
     artifacts_payload: List[Dict[str, object]] = []
+    collector_commands: Dict[str, object] = {}
+    cprofile_status: Optional[str] = None
+    cprofile_empty = False
+    child_cpu_avg: Optional[float] = None
 
     for artifact in session.artifacts:
         artifacts_payload.append(_artifact_payload(artifact))
         metrics = artifact.metrics
         if isinstance(metrics, dict):
+            command_line = metrics.get("command_line")
+            if command_line:
+                collector_commands[artifact.collector] = command_line
             if "timeseries" in metrics and isinstance(metrics["timeseries"], list):
                 timeseries = metrics["timeseries"]
             if "summary" in metrics and isinstance(metrics["summary"], dict):
                 summary = metrics["summary"]
+                child_summary = metrics["summary"].get("child_cpu_percent", {})
+                if isinstance(child_summary, dict):
+                    avg = child_summary.get("avg")
+                    if isinstance(avg, (int, float)):
+                        child_cpu_avg = float(avg)
             artifact_warnings = metrics.get("warnings")
             if isinstance(artifact_warnings, list):
                 warnings.extend(str(value) for value in artifact_warnings)
             if metrics.get("status") == "unavailable":
                 reason = metrics.get("reason", "collector unavailable")
                 warnings.append(f"{artifact.collector}: {reason}")
+            if artifact.collector == "CProfileCollector":
+                cprofile_status = metrics.get("status")
+                cprofile_empty = bool(metrics.get("cprofile_empty"))
 
     report = {
         "schema_version": "1.0",
@@ -55,6 +70,15 @@ def build_session_report(
         "diagnosis": diagnosis or [],
         "warnings": warnings,
     }
+    if collector_commands:
+        report["metadata"]["collector_commands"] = collector_commands
+    if cprofile_empty and child_cpu_avg and child_cpu_avg > 10.0:
+        warnings.append(
+            "cProfile did not capture child process work; consider profiling children "
+            "or aggregating system CPU across the process tree"
+        )
+    if cprofile_status and cprofile_status != "ok" and not warnings:
+        warnings.append(f"CProfileCollector reported status={cprofile_status}")
     return report
 
 

@@ -38,6 +38,15 @@
     - "Inline critical small functions if possible. / 如果可能，将关键的小函数进行内联。"
     - "Check for recursive calls or deep nesting. / 检查递归调用或深层嵌套。"
 
+- id: cprofile_empty_stats
+  meaning: "cProfile returned empty stats; profiling likely missed child process work or failed to read the profile file / cProfile 统计为空，可能遗漏子进程工作或无法读取配置文件"
+  condition:
+    cprofile_empty: "== 1"
+  suggestions:
+    - "Check for multiprocessing or subprocess workloads; cProfile only captures the parent process. / 检查是否存在多进程或子进程工作负载；cProfile 仅捕获父进程。"
+    - "Run with --include-children to aggregate system CPU across the process tree. / 使用 --include-children 汇总进程树的系统级 CPU。"
+    - "Use py-spy or perf to capture native/child workloads. / 使用 py-spy 或 perf 捕获原生/子进程工作负载。"
+
 # ===== Memory Related Patterns / 内存相关模式 =====
 - id: memory_growth_trend
   meaning: "Memory usage shows upward trend during execution / 执行期间内存使用量呈现上升趋势"
