@@ -157,7 +157,9 @@ def _resolve_collectors(
                 )
             )
         elif name == "cprofile":
-            collectors.append(CProfileCollector(output_dir=output_dir))
+            collectors.append(
+                CProfileCollector(output_dir=output_dir, include_children=include_children)
+            )
         elif name == "pyspy":
             collectors.append(PySpyCollector(duration=duration or 5.0, output_dir=output_dir))
     return collectors

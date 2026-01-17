@@ -8,6 +8,7 @@ modifying the target program itself.
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import time
@@ -21,8 +22,15 @@ from .collectors.base import Collector
 class Runner:
     """Launches target programs under profiling collectors."""
 
+    logger = logging.getLogger(__name__)
+
     def run(self, target: TargetProgram, collectors: Iterable[Collector]) -> ProfilingSession:
         started_at = datetime.now(timezone.utc)
+        self.logger.debug(
+            "Runner launching command: %s (cwd=%s)",
+            target.command,
+            target.cwd,
+        )
         process = subprocess.Popen(
             target.command,
             cwd=target.cwd,
@@ -43,6 +51,10 @@ class Runner:
             process.kill()
             stdout, stderr = process.communicate()
         finally:
+            if stdout:
+                self.logger.debug("Runner captured stdout: %s", stdout)
+            if stderr:
+                self.logger.debug("Runner captured stderr: %s", stderr)
             for collector in collectors:
                 artifacts.append(collector.stop())
 

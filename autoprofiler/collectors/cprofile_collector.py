@@ -9,6 +9,7 @@ results are reproducible and can be re-analyzed later.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,10 +25,16 @@ logger = logging.getLogger(__name__)
 class CProfileCollector(Collector):
     """Collector that wraps execution with the built-in cProfile module."""
 
-    def __init__(self, output_dir: Optional[Path] = None, top_n: int = 10) -> None:
+    def __init__(
+        self,
+        output_dir: Optional[Path] = None,
+        top_n: int = 10,
+        include_children: bool = False,
+    ) -> None:
         super().__init__(category="cpu")
         self.output_dir = output_dir or Path.cwd()
         self.top_n = top_n
+        self.include_children = include_children
         self._output_file: Optional[Path] = None
         self._command_line: Optional[List[str]] = None
 
@@ -39,8 +46,37 @@ class CProfileCollector(Collector):
         """
 
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-        self._output_file = Path(self.output_dir) / f"cprofile_{timestamp}.pstats"
+        output_dir = Path(self.output_dir)
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.warning(
+                "CProfileCollector could not create output directory %s: %s",
+                output_dir,
+                exc,
+            )
+        self._output_file = output_dir / f"cprofile_{timestamp}.pstats"
         if command and _looks_like_python(command[0]):
+            if "-c" in command[1:]:
+                code_index = command.index("-c")
+                code = command[code_index + 1] if code_index + 1 < len(command) else ""
+                prefix_args = command[1:code_index]
+                suffix_args = command[code_index + 2 :]
+                inline_script = _build_inline_cprofile(code, self._output_file)
+                wrapped = [
+                    command[0],
+                    *prefix_args,
+                    "-c",
+                    inline_script,
+                    *suffix_args,
+                ]
+                self._command_line = wrapped
+                logger.debug(
+                    "CProfileCollector wrapping python -c with inline profiler: %s (output file: %s)",
+                    self._command_line,
+                    self._output_file,
+                )
+                return list(self._command_line)
             wrapped = [
                 command[0],
                 "-m",
@@ -50,6 +86,11 @@ class CProfileCollector(Collector):
                 *command[1:],
             ]
         else:
+            if command:
+                logger.warning(
+                    "CProfileCollector received non-Python command; profiling may fail: %s",
+                    command,
+                )
             wrapped = [
                 sys.executable,
                 "-m",
@@ -59,7 +100,11 @@ class CProfileCollector(Collector):
                 *command,
             ]
         self._command_line = wrapped
-        logger.debug("CProfileCollector wrapping command: %s", self._command_line)
+        logger.debug(
+            "CProfileCollector wrapping command: %s (output file: %s)",
+            self._command_line,
+            self._output_file,
+        )
         return list(self._command_line)
 
     def start(self, pid: int | List[int]) -> None:  # noqa: ARG002 - pid recorded for interface compliance
@@ -84,7 +129,21 @@ class CProfileCollector(Collector):
         warnings: List[str] = []
         status = "ok"
         reason: Optional[str] = None
+        if self.include_children:
+            warnings.append(
+                "cProfile does not capture child processes; rerun with py-spy or perf for multi-process workloads"
+            )
         if not self._output_file or not self._output_file.exists():
+            if self._output_file:
+                parent = self._output_file.parent
+                if not parent.exists():
+                    warnings.append(
+                        f"cProfile output directory missing: {parent}"
+                    )
+                elif not os.access(parent, os.W_OK):
+                    warnings.append(
+                        f"cProfile output directory not writable: {parent}"
+                    )
             warnings.append("cProfile output missing (prof file missing)")
             status = "missing"
             reason = "prof file missing"
@@ -95,10 +154,12 @@ class CProfileCollector(Collector):
                 "status": status,
                 "reason": reason,
                 "warnings": warnings,
+                "output_file": str(self._output_file) if self._output_file else None,
                 "cprofile_empty": 1.0,
             }
 
-        if self._output_file.stat().st_size == 0:
+        file_size = self._output_file.stat().st_size
+        if file_size == 0:
             warnings.append(
                 "cProfile output file empty; target may have exited before profiler started"
             )
@@ -111,6 +172,8 @@ class CProfileCollector(Collector):
                 "status": status,
                 "reason": reason,
                 "warnings": warnings,
+                "output_file": str(self._output_file),
+                "output_file_size": float(file_size),
                 "cprofile_empty": 1.0,
             }
 
@@ -127,6 +190,8 @@ class CProfileCollector(Collector):
                 "status": status,
                 "reason": reason,
                 "warnings": warnings,
+                "output_file": str(self._output_file),
+                "output_file_size": float(file_size),
                 "cprofile_empty": 1.0,
             }
 
@@ -149,6 +214,8 @@ class CProfileCollector(Collector):
             "status": status,
             "reason": reason,
             "warnings": warnings,
+            "output_file": str(self._output_file),
+            "output_file_size": float(file_size),
             "cprofile_empty": cprofile_empty,
         }
 
@@ -174,3 +241,10 @@ def _looks_like_python(executable: str) -> bool:
     if executable == sys.executable:
         return True
     return name == "python" or name.startswith("python")
+
+
+def _build_inline_cprofile(code: str, output_file: Path) -> str:
+    return (
+        "import cProfile; "
+        f"cProfile.run({code!r}, {str(output_file)!r})"
+    )
