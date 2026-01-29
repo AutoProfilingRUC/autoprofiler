@@ -33,11 +33,17 @@ class PySpyCollector(Collector):
         self._disabled_reason: Optional[str] = None
         self._stderr: str = ""
 
-    def start(self, pid: int) -> None:
+    def start(self, pid: int | List[int]) -> None:
         pyspy_path = shutil.which("py-spy")
         if not pyspy_path:
             self._disabled_reason = "py-spy not available in PATH"
             return
+
+        if isinstance(pid, list):
+            if not pid:
+                self._disabled_reason = "no pid provided for py-spy"
+                return
+            pid = pid[0]
 
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
         suffix = "svg" if self.flamegraph else "raw"

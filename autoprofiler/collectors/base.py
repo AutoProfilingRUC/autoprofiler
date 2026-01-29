@@ -22,7 +22,7 @@ class Collector(ABC):
         self._started_at: Optional[datetime] = None
 
     @abstractmethod
-    def start(self, pid: int) -> None:
+    def start(self, pid: int | list[int]) -> None:
         """Attach to the target process.
 
         Collectors should capture any required context here, but they must

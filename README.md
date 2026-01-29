@@ -121,6 +121,11 @@ python -m pip install psutil pyyaml
 
 Optional / future collectors may require additional dependencies (e.g. `py-spy`). Check the corresponding collector module docstring for details.
 
+Web UI dependencies (if you run `web_app.py`):
+
+* [`Flask`](https://pypi.org/project/Flask/)
+* [`flask-cors`](https://pypi.org/project/flask-cors/)
+
 To validate the installation, run a lightweight import and bytecode compilation check:
 
 ```bash
@@ -181,6 +186,22 @@ python -m autoprofiler.demo_profile
 
 This combines psutil sampling with a cProfile-based collector (if available), loads patterns from `autoprofiler/patterns/performance.yaml`, and prints both markdown and JSON findings.
 
+### Root Cause + Fix: Empty cProfile Stats with High CPU
+
+When the target workload spends CPU in child processes (e.g., multiprocessing, subprocesses, or native extensions), the parent process wrapped by `python -m cProfile` can emit empty or misleading stats. AutoProfiler now detects this condition, reports explicit warnings, and avoids incorrect "few calls => native code" inferences when cProfile reports empty stats. The psutil process collector can also surface child-heavy CPU usage so you can decide to aggregate metrics or profile children with sampling tools. Use `--include-children` to aggregate process-tree CPU in system metrics.
+
+#### Example validation commands
+
+```bash
+# Single-process CPU workload (cProfile should show non-empty stats)
+autoprofiler run --collect psutil,cprofile -- \\
+  python tests/fixtures/cprofile_workload.py --mode single --duration 1.5
+
+# Multi-process workload (child CPU should be detected; cProfile may be empty/misleading)
+autoprofiler run --collect psutil,cprofile --include-children -- \\
+  python tests/fixtures/cprofile_workload.py --mode multi --duration 1.5
+```
+
 ### Run AutoProfiler via the template test
 
 You can also launch the profiling pipeline directly from the terminal using the template test in `tests/test_autoprofiler_template.py`.
@@ -197,6 +218,103 @@ Point the profiler at your own program (any executable command works):
 AUTOPROFILER_TARGET="python my_script.py --flag" \
   python -m unittest tests.test_autoprofiler_template
 ```
+
+---
+
+## 7. CLI-first process profiling (Linux MVP)
+
+AutoProfiler now supports profiling **arbitrary Linux executables** and attaching to
+**running processes** from the command line. Existing Python collectors (cProfile/py-spy)
+are still available and can be requested explicitly.
+
+### Run mode
+
+```bash
+# Run an executable and profile until it exits
+python -m autoprofiler run -- ./my_binary --flag value
+
+# Profile for a fixed window (in seconds)
+python -m autoprofiler run --duration 10 -- ./my_binary --flag value
+
+# Set working directory + environment variables for the target process
+python -m autoprofiler run --cwd /tmp --env FOO=bar --env PATH=/opt/bin:$PATH -- ./my_binary
+```
+
+### Attach mode
+
+```bash
+# Attach to a running PID for 30s (default)
+python -m autoprofiler attach --pid 12345
+
+# Attach to process name (collects all matching PIDs)
+python -m autoprofiler attach --name myservice --duration 20
+
+# Include the entire process tree (child processes) in aggregation
+python -m autoprofiler attach --pid 12345 --include-children --duration 20
+```
+
+### Collector selection
+
+```bash
+# Choose collectors explicitly
+python -m autoprofiler run --collect psutil,perf -- ./my_binary
+python -m autoprofiler run --collect psutil,pyspy -- python my_script.py
+```
+
+Defaults:
+
+* Linux: `psutil + perf` (perf is best-effort; it disables itself when unavailable)
+* Other platforms: `psutil` only
+
+### Output artifacts
+
+Every CLI run produces:
+
+* `profile_report.json` (machine-readable, JSON)
+* terminal summary (human-readable)
+* optional artifacts (e.g., `perf_*.data`, `pyspy_*.svg`)
+
+Example JSON snippet:
+
+```json
+{
+  "schema_version": "1.0",
+  "metadata": {
+    "mode": "run",
+    "command": ["./my_binary", "--flag", "value"],
+    "pids": [4242],
+    "platform": "linux"
+  },
+  "timeseries": [
+    {"t": 0.0, "cpu_percent": 12.5, "rss_bytes": 10485760.0}
+  ],
+  "summary": {
+    "cpu_percent": {"min": 8.0, "max": 110.0, "p50": 45.0, "p95": 98.0}
+  },
+  "diagnosis": [
+    {"label": "cpu_bound", "confidence": 0.7, "evidence": {"cpu_avg": 91.2}}
+  ],
+  "warnings": []
+}
+```
+
+### Perf permissions (Linux)
+
+`perf` may require relaxed kernel settings or elevated privileges. Common fixes:
+
+```bash
+sudo sysctl -w kernel.perf_event_paranoid=1
+sudo sysctl -w kernel.kptr_restrict=0
+```
+
+If you see `perf` permission errors, AutoProfiler will continue and emit a warning in
+`profile_report.json` with troubleshooting hints.
+
+### Windows notes (design-ready, partial support)
+
+* `--cwd` and `--env` work for running Windows executables.
+* `psutil` data collection works best-effort on Windows.
+* ETW profiling is **not** implemented in the MVP; see `EtwCollector` placeholder.
 
 The template test prints the generated markdown report to stdout so you can quickly inspect findings without wiring up additional code.
 
@@ -508,4 +626,3 @@ The system exists to:
 * Increase diagnostic accuracy
 * Improve explainability
 * Enable reproducible performance engineering
-
