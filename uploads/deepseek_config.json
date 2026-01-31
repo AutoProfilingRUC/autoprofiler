@@ -1,0 +1,8 @@
+{
+  "api_key": "sk-8afb56403a7e434bac234fcc7afdf843",
+  "api_url": "https://api.deepseek.com/v1/chat/completions",
+  "model": "deepseek-chat",
+  "enable_blackbox": true,
+  "enable_whitebox": true,
+  "temperature": 0.3
+}

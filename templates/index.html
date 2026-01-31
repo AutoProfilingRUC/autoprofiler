@@ -1,206 +1,418 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AutoProfiler - Python性能分析工具</title>
-    <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
-    <script>hljs.highlightAll();</script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1><i class="fas fa-chart-line"></i> AutoProfiler</h1>
-            <p class="subtitle">Python代码性能分析工具 - 在线版</p>
-        </header>
+        <div class="header-actions">
+            <h1>
+                <i class="fas fa-chart-line"></i>
+                AutoProfiler - Python性能分析
+            </h1>
+            <div>
+                <button class="btn btn-info" onclick="openDeepSeekConfig()">
+                    <i class="fas fa-robot"></i>
+                    DeepSeek配置
+                </button>
+                <button class="btn btn-secondary" onclick="showHelp()">
+                    <i class="fas fa-question-circle"></i>
+                    帮助
+                </button>
+            </div>
+        </div>
         
-        <main>
-            <div class="upload-section">
-                <h2><i class="fas fa-upload"></i> 上传Python文件进行分析</h2>
-                <p>上传您的Python文件，AutoProfiler将自动分析性能瓶颈并提供优化建议</p>
-                
-                <div class="upload-options">
-                    <div class="upload-option active" id="tab-file">
-                        <i class="fas fa-file-code"></i> 文件上传
-                    </div>
-                    <div class="upload-option" id="tab-url">
-                        <i class="fas fa-link"></i> URL上传
-                    </div>
-                    <div class="upload-option" id="tab-code">
-                        <i class="fas fa-keyboard"></i> 直接输入代码
-                    </div>
-                </div>
-                
-                <!-- 文件上传区域 -->
-                <div class="upload-area active" id="area-file">
-                    <div class="drop-zone" id="dropZone">
-                        <i class="fas fa-cloud-upload-alt fa-3x"></i>
-                        <p>拖放Python文件到此处 或</p>
-                        <button class="btn btn-primary" id="selectFileBtn">
-                            <i class="fas fa-folder-open"></i> 选择文件
-                        </button>
-                        <input type="file" id="fileInput" accept=".py,.pyw,.txt" style="display: none;">
-                        <p class="file-info">支持 .py, .pyw, .txt 文件，最大50MB</p>
-                    </div>
-                </div>
-                
-                <!-- URL上传区域 -->
-                <div class="upload-area" id="area-url">
-                    <div class="url-input-area">
-                        <input type="text" id="urlInput" placeholder="输入Python文件的URL (例如: https://example.com/script.py)">
-                        <button class="btn btn-primary" id="fetchUrlBtn">
-                            <i class="fas fa-download"></i> 从URL分析
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- 代码输入区域 -->
-                <div class="upload-area" id="area-code">
-                    <div class="code-input-area">
-                        <textarea id="codeInput" placeholder="输入或粘贴Python代码..."></textarea>
-                        <button class="btn btn-primary" id="analyzeCodeBtn">
-                            <i class="fas fa-play"></i> 分析代码
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="progress-container" id="progressContainer" style="display: none;">
-                    <div class="progress-header">
-                        <h3><i class="fas fa-spinner fa-spin"></i> 正在分析...</h3>
-                        <span id="progressText">0%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
-                    </div>
-                    <div class="analysis-info" id="analysisInfo">
-                        <p><i class="fas fa-file"></i> 文件: <span id="fileName">-</span></p>
-                        <p><i class="fas fa-clock"></i> 开始时间: <span id="startTime">-</span></p>
-                    </div>
-                </div>
+        <div class="deepseek-status">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <div>
+                <strong>DeepSeek AI分析</strong>
+                <div id="deepseekStatusText">状态: 加载中...</div>
             </div>
-            
-            <div class="results-section" id="resultsSection" style="display: none;">
-                <h2><i class="fas fa-chart-bar"></i> 分析结果</h2>
-                
-                <div class="results-header">
-                    <div class="result-summary">
-                        <div class="summary-item">
-                            <i class="fas fa-clock"></i>
-                            <div>
-                                <span class="label">运行时间</span>
-                                <span class="value" id="summaryDuration">-</span>
-                            </div>
-                        </div>
-                        <div class="summary-item">
-                            <i class="fas fa-microchip"></i>
-                            <div>
-                                <span class="label">退出码</span>
-                                <span class="value" id="summaryExitCode">-</span>
-                            </div>
-                        </div>
-                        <div class="summary-item">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <div>
-                                <span class="label">发现问题</span>
-                                <span class="value" id="summaryFindings">-</span>
-                            </div>
-                        </div>
-                        <div class="summary-item">
-                            <i class="fas fa-file"></i>
-                            <div>
-                                <span class="label">文件大小</span>
-                                <span class="value" id="summaryFileSize">-</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="result-actions">
-                        <button class="btn btn-success" id="downloadReportBtn">
-                            <i class="fas fa-download"></i> 下载报告
-                        </button>
-                        <button class="btn btn-secondary" id="copyReportBtn">
-                            <i class="far fa-copy"></i> 复制报告
-                        </button>
-                        <button class="btn btn-outline" id="newAnalysisBtn">
-                            <i class="fas fa-plus"></i> 新的分析
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="results-tabs">
-                    <div class="results-tab active" id="tab-report">
-                        <i class="fas fa-file-alt"></i> 完整报告
-                    </div>
-                    <div class="results-tab" id="tab-findings">
-                        <i class="fas fa-search"></i> 性能问题
-                    </div>
-                    <div class="results-tab" id="tab-raw">
-                        <i class="fas fa-code"></i> 原始数据
-                    </div>
-                </div>
-                
-                <div class="results-content">
-                    <div class="result-pane active" id="pane-report">
-                        <pre id="reportContent"></pre>
-                    </div>
-                    
-                    <div class="result-pane" id="pane-findings">
-                        <div id="findingsContent">
-                            <p class="no-data">没有发现性能问题</p>
-                        </div>
-                    </div>
-                    
-                    <div class="result-pane" id="pane-raw">
-                        <pre id="rawDataContent"></pre>
-                    </div>
-                </div>
+            <div style="flex: 1"></div>
+            <div id="deepseekOptions">
+                <div><small>黑盒分析: 加载中...</small></div>
+                <div><small>白盒分析: 加载中...</small></div>
             </div>
-            
-            <div class="recent-analyses" id="recentAnalyses" style="display: none;">
-                <h2><i class="fas fa-history"></i> 最近的分析</h2>
-                <div id="recentAnalysesList"></div>
-            </div>
-            
-            <div class="info-section">
-                <h2><i class="fas fa-info-circle"></i> 关于 AutoProfiler</h2>
-                <div class="info-cards">
-                    <div class="info-card">
-                        <i class="fas fa-bolt"></i>
-                        <h3>性能分析</h3>
-                        <p>自动识别代码中的性能瓶颈，包括CPU使用、内存消耗、函数调用等。</p>
-                    </div>
-                    <div class="info-card">
-                        <i class="fas fa-lightbulb"></i>
-                        <h3>智能建议</h3>
-                        <p>基于性能模式数据库，提供具体的优化建议和改进方案。</p>
-                    </div>
-                    <div class="info-card">
-                        <i class="fas fa-shield-alt"></i>
-                        <h3>安全可靠</h3>
-                        <p>在隔离环境中运行代码，确保您的代码和数据安全。</p>
-                    </div>
-                    <div class="info-card">
-                        <i class="fas fa-download"></i>
-                        <h3>报告导出</h3>
-                        <p>生成详细的Markdown报告，支持下载和分享分析结果。</p>
-                    </div>
-                </div>
-            </div>
-        </main>
+        </div>
         
-        <footer>
-            <p>AutoProfiler Web 版本 1.0.0 | 
-                <a href="https://github.com/yourusername/autoprofiler" target="_blank">
-                    <i class="fab fa-github"></i> GitHub
-                </a>
-            </p>
-            <p class="copyright">© 2024 AutoProfiler Team. 仅供学习和测试使用。</p>
-        </footer>
+        <div class="subtitle">
+            上传Python文件进行全面的性能分析，包括性能指标收集、代码结构分析，并结合DeepSeek AI提供智能优化建议。
+        </div>
+        
+        <div class="upload-area" id="dropArea">
+            <div class="upload-icon">
+                <i class="fas fa-cloud-upload-alt"></i>
+            </div>
+            <div class="upload-text">拖放Python文件到此处 或 点击选择文件</div>
+            <input type="file" id="fileInput" accept=".py,.pyw" style="display: none;">
+            <button class="btn" onclick="document.getElementById('fileInput').click()">
+                <i class="fas fa-file-code"></i>
+                选择文件
+            </button>
+            <div class="upload-hint">支持 .py, .pyw 文件，最大50MB</div>
+        </div>
+        
+        <div class="progress-container" id="progress">
+            <div class="progress-bar" id="progressBar"></div>
+            <div class="progress-text" id="progressText">0% - 准备开始分析...</div>
+            <div class="progress-steps" id="progressSteps">
+                <div class="progress-step active" id="step1">准备</div>
+                <div class="progress-step" id="step2">性能分析</div>
+                <div class="progress-step" id="step3">黑盒分析</div>
+                <div class="progress-step" id="step4">白盒分析</div>
+                <div class="progress-step" id="step5">报告生成</div>
+            </div>
+        </div>
+        
+        <div class="result-container" id="resultContainer">
+            <h2><i class="fas fa-chart-bar"></i> 分析结果</h2>
+            
+            <div class="stats-container" id="statsContainer">
+                <!-- 统计信息将通过JS动态填充 -->
+            </div>
+            
+            <div class="result-tabs">
+                <div class="tab active" onclick="showTab('preview')">
+                    <i class="fas fa-eye"></i> HTML预览
+                </div>
+                <div class="tab" onclick="showTab('markdown')">
+                    <i class="fas fa-code"></i> Markdown源码
+                </div>
+                <div class="tab" onclick="showTab('structure')">
+                    <i class="fas fa-sitemap"></i> 代码结构
+                </div>
+                <div class="tab" onclick="showTab('deepseek')">
+                    <i class="fas fa-robot"></i> AI分析
+                </div>
+                <div class="tab" onclick="showTab('raw')">
+                    <i class="fas fa-database"></i> 原始数据
+                </div>
+            </div>
+            
+            <div class="tab-content active" id="previewTab">
+                <div class="html-preview" id="htmlPreview"></div>
+            </div>
+            
+            <div class="tab-content" id="markdownTab">
+                <pre id="markdownContent"></pre>
+            </div>
+            
+            <div class="tab-content" id="structureTab">
+                <div id="codeStructure"></div>
+            </div>
+            
+            <div class="tab-content" id="deepseekTab">
+                <div id="deepseekResults"></div>
+            </div>
+            
+            <div class="tab-content" id="rawTab">
+                <pre id="rawData"></pre>
+            </div>
+            
+            <div class="actions">
+                <button class="btn btn-success" onclick="downloadReport('html')">
+                    <i class="fas fa-download"></i> 下载HTML报告
+                </button>
+                <button class="btn" onclick="downloadReport('markdown')">
+                    <i class="fas fa-file-alt"></i> 下载Markdown
+                </button>
+                <button class="btn btn-secondary" onclick="downloadReport('pdf')">
+                    <i class="fas fa-file-pdf"></i> 下载PDF
+                </button>
+                <button class="btn btn-info" onclick="copyToClipboard('html')">
+                    <i class="fas fa-copy"></i> 复制HTML
+                </button>
+                <button class="btn btn-danger" onclick="resetAnalysis()">
+                    <i class="fas fa-redo"></i> 新的分析
+                </button>
+            </div>
+        </div>
     </div>
     
-    <script src="/static/js/app.js"></script>
+    <!-- DeepSeek配置模态框 -->
+    <div class="modal" id="deepseekModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-robot"></i> DeepSeek API配置</h2>
+                <button class="close-modal" onclick="closeDeepSeekConfig()">×</button>
+            </div>
+            <form id="deepseekConfigForm">
+                <div class="form-group">
+                    <label for="apiKey">API密钥</label>
+                    <input type="password" id="apiKey" class="form-control password" 
+                           placeholder="输入您的DeepSeek API密钥">
+                    <div class="help-text">
+                        可在 <a href="https://platform.deepseek.com/api_keys" target="_blank">DeepSeek平台</a> 获取API密钥
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="apiUrl">API地址</label>
+                    <input type="text" id="apiUrl" class="form-control" 
+                           placeholder="https://api.deepseek.com/v1/chat/completions">
+                    <div class="help-text">通常无需修改，除非使用自定义API端点</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="model">模型</label>
+                    <input type="text" id="model" class="form-control" 
+                           placeholder="deepseek-chat">
+                    <div class="help-text">可选的DeepSeek模型名称</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>分析选项</label>
+                    <div class="form-check">
+                        <input type="checkbox" id="enableBlackbox" class="form-check-input">
+                        <label for="enableBlackbox" class="form-check-label">启用黑盒分析</label>
+                    </div>
+                    <div class="help-text">基于性能数据的AI分析</div>
+                    
+                    <div class="form-check">
+                        <input type="checkbox" id="enableWhitebox" class="form-check-input">
+                        <label for="enableWhitebox" class="form-check-label">启用白盒分析</label>
+                    </div>
+                    <div class="help-text">基于代码结构的AI分析</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="temperature">温度参数</label>
+                    <input type="range" id="temperature" class="form-control" min="0" max="1" step="0.1" value="0.3">
+                    <div class="help-text" id="temperatureValue">0.3 (0=确定性高, 1=创造性高)</div>
+                </div>
+                
+                <div class="config-actions">
+                    <button type="button" class="btn btn-success" onclick="saveDeepSeekConfig()">
+                        <i class="fas fa-save"></i> 保存配置
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="testDeepSeekConnection()">
+                        <i class="fas fa-plug"></i> 测试连接
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="clearDeepSeekConfig()">
+                        <i class="fas fa-trash"></i> 清除配置
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 通知框 -->
+    <div class="notification" id="notification"></div>
+    
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDeepSeekConfig();
+        });
+        
+        // 更新DeepSeek状态显示
+        function updateDeepSeekStatus(config) {
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('deepseekStatusText');
+            const optionsElement = document.getElementById('deepseekOptions');
+            
+            if (config && config.api_key) {
+                statusIndicator.style.backgroundColor = '#28a745';
+                statusText.innerHTML = '状态: <span style="color:#28a745">已配置 ✓</span>';
+            } else {
+                statusIndicator.style.backgroundColor = '#e74c3c';
+                statusText.innerHTML = '状态: <span style="color:#e74c3c">未配置 ✗</span>';
+            }
+            
+            if (optionsElement && config) {
+                const blackboxStatus = config.enable_blackbox ? '✓ 启用' : '✗ 禁用';
+                const whiteboxStatus = config.enable_whitebox ? '✓ 启用' : '✗ 禁用';
+                optionsElement.innerHTML = `
+                    <div><small>黑盒分析: ${blackboxStatus}</small></div>
+                    <div><small>白盒分析: ${whiteboxStatus}</small></div>
+                `;
+            }
+        }
+        
+        // DeepSeek配置相关函数
+        function openDeepSeekConfig() {
+            // 加载当前配置到表单
+            fetch('/api/deepseek/config')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.config) {
+                        const config = data.config;
+                        document.getElementById('apiKey').value = config.api_key || '';
+                        document.getElementById('apiUrl').value = config.api_url || 'https://api.deepseek.com/v1/chat/completions';
+                        document.getElementById('model').value = config.model || 'deepseek-chat';
+                        document.getElementById('enableBlackbox').checked = config.enable_blackbox !== false;
+                        document.getElementById('enableWhitebox').checked = config.enable_whitebox !== false;
+                        document.getElementById('temperature').value = config.temperature || 0.3;
+                        document.getElementById('temperatureValue').textContent = 
+                            (config.temperature || 0.3) + ' (0=确定性高, 1=创造性高)';
+                    }
+                })
+                .catch(error => {
+                    console.error('加载配置失败:', error);
+                });
+            
+            document.getElementById('deepseekModal').style.display = 'flex';
+        }
+        
+        function closeDeepSeekConfig() {
+            document.getElementById('deepseekModal').style.display = 'none';
+        }
+        
+        async function loadDeepSeekConfig() {
+            try {
+                const response = await fetch('/api/deepseek/config');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        window.deepseekConfig = data.config;
+                        updateDeepSeekStatus(data.config);
+                        console.log('DeepSeek配置加载成功:', data.config);
+                    } else {
+                        console.error('加载DeepSeek配置失败:', data.error);
+                    }
+                }
+            } catch (error) {
+                console.error('加载DeepSeek配置失败:', error);
+            }
+        }
+        
+        async function saveDeepSeekConfig() {
+            const config = {
+                api_key: document.getElementById('apiKey').value.trim(),
+                api_url: document.getElementById('apiUrl').value.trim() || 'https://api.deepseek.com/v1/chat/completions',
+                model: document.getElementById('model').value.trim() || 'deepseek-chat',
+                enable_blackbox: document.getElementById('enableBlackbox').checked,
+                enable_whitebox: document.getElementById('enableWhitebox').checked,
+                temperature: parseFloat(document.getElementById('temperature').value)
+            };
+            
+            try {
+                const response = await fetch('/api/deepseek/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    window.deepseekConfig = config;
+                    updateDeepSeekStatus(config);
+                    showNotification('DeepSeek配置保存成功！', 'success');
+                    closeDeepSeekConfig();
+                } else {
+                    showNotification('保存失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('保存失败: ' + error.message, 'error');
+            }
+        }
+        
+        async function clearDeepSeekConfig() {
+            if (confirm('确定要清除DeepSeek配置吗？')) {
+                try {
+                    const response = await fetch('/api/deepseek/clear', {
+                        method: 'POST'
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        window.deepseekConfig = {};
+                        updateDeepSeekStatus({});
+                        showNotification('DeepSeek配置已清除', 'success');
+                        closeDeepSeekConfig();
+                    }
+                } catch (error) {
+                    showNotification('清除失败: ' + error.message, 'error');
+                }
+            }
+        }
+        
+        async function testDeepSeekConnection() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (!apiKey) {
+                showNotification('请输入API密钥', 'warning');
+                return;
+            }
+            
+            showNotification('正在测试DeepSeek连接...', 'warning', 5000);
+            
+            try {
+                const response = await fetch('/api/deepseek/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        api_key: apiKey,
+                        api_url: document.getElementById('apiUrl').value.trim()
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('DeepSeek连接测试成功！', 'success');
+                } else {
+                    showNotification('连接测试失败: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('连接测试失败: ' + error.message, 'error');
+            }
+        }
+        
+        function showHelp() {
+            alert(`AutoProfiler 使用帮助
+
+1. 基本使用：
+   - 拖放或选择Python文件上传
+   - 等待分析完成
+   - 查看不同格式的报告
+
+2. DeepSeek AI分析：
+   - 点击"DeepSeek配置"按钮设置API密钥
+   - 支持黑盒分析（基于性能数据）
+   - 支持白盒分析（基于代码结构）
+   - 配置后分析报告将包含AI建议
+
+3. 报告格式：
+   - HTML预览：格式化的完整报告
+   - Markdown源码：原始Markdown内容
+   - 代码结构：详细的代码分析
+   - AI分析：DeepSeek的优化建议
+   - 原始数据：完整分析数据
+
+4. 下载选项：
+   - HTML：适合网页查看
+   - PDF：适合打印和分享
+   - Markdown：适合编辑和存档
+
+注意：DeepSeek API需要有效的API密钥，您可以在DeepSeek官网申请。`);
+        }
+        
+        // 温度滑块事件
+        document.getElementById('temperature')?.addEventListener('input', function() {
+            document.getElementById('temperatureValue').textContent = 
+                this.value + ' (0=确定性高, 1=创造性高)';
+        });
+        
+        // 初始化全局deepseekConfig变量
+        if (!window.deepseekConfig) {
+            window.deepseekConfig = {};
+        }
+        
+        // 暴露函数到全局作用域
+        window.openDeepSeekConfig = openDeepSeekConfig;
+        window.closeDeepSeekConfig = closeDeepSeekConfig;
+        window.saveDeepSeekConfig = saveDeepSeekConfig;
+        window.clearDeepSeekConfig = clearDeepSeekConfig;
+        window.testDeepSeekConnection = testDeepSeekConnection;
+        window.showHelp = showHelp;
+    </script>
 </body>
 </html>
