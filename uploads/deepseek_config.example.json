@@ -1,0 +1,14 @@
+{
+  "api_key": "",
+  "api_url": "https://api.deepseek.com/v1/chat/completions",
+  "model": "deepseek-chat",
+  "output_language": "zh",
+  "enable_blackbox": true,
+  "enable_whitebox": true,
+  "temperature": 0.3,
+  "max_tokens": 2000,
+  "use_local_model": false,
+  "local_api_url": "http://127.0.0.1:11434/v1/chat/completions",
+  "local_model": "",
+  "local_api_key": ""
+}

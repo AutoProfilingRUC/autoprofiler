@@ -16,6 +16,7 @@ import os
 from config import Config
 from api.routes import register_routes
 from api.deepseek_routes import register_deepseek_routes
+from api.proj_analyser_routes import register_proj_analyser_routes
 
 def create_app(config_class=Config):
     """创建Flask应用"""
@@ -35,6 +36,7 @@ def create_app(config_class=Config):
     # 注册蓝图/路由
     register_routes(app)
     register_deepseek_routes(app)
+    register_proj_analyser_routes(app)
     
     return app
 

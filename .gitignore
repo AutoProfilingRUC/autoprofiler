@@ -20,6 +20,23 @@ dist/
 # ===== Logs & cache =====
 *.log
 .cache/
+.autoprofiler_proj_analyser/
+profile_report.json
+findings.json
+report.md
+
+# ===== Generated docs/reports =====
+docs/generated/**
+!docs/generated/.gitkeep
+!docs/generated/file/
+!docs/generated/file/.gitkeep
+!docs/generated/project/
+!docs/generated/project/.gitkeep
+
+# ===== Runtime uploads/config =====
+uploads/*
+!uploads/.gitkeep
+!uploads/deepseek_config.example.json
 
 # ===== IDE =====
 .vscode/

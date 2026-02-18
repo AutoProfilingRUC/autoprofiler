@@ -7,6 +7,13 @@ AutoProfiler 是一个用 **Python** 实现的**自动性能分析和诊断工�
 核心目标：
 > 自动收集Python代码的性能数据，分析性能瓶颈，生成**格式化的性能诊断报告**（支持HTML、PDF、Markdown多种格式）。
 
+项目文档现已统一整理到 `docs/`：
+- `docs/README.md`：文档索引
+- `docs/reference/`：当前有效的参考文档
+- `docs/changelog.md`：变更记录
+- `docs/archive/`：历史设计文档归档
+- `docs/generated/`：运行期生成报告（默认 git ignore）
+
 ## 2. 主要特性
 
 ### ✅ 多格式报告输出
@@ -95,6 +102,14 @@ source .venv/bin/activate  # Linux/Mac
 
 # 安装完整依赖
 pip install psutil PyYAML flask flask-cors werkzeug markdown weasyprint
+```
+
+Windows 下也可一键执行：
+
+```powershell
+python -m venv .venv
+python tools/bootstrap.py
+.\.venv\Scripts\activate
 ```
 
 ### 最小安装（仅命令行工具）
@@ -337,6 +352,10 @@ sudo apt-get install python3-weasyprint
 
 # macOS
 brew install weasyprint
+
+# Windows（安装 GTK 运行时后，确保 bin 目录在 PATH 中）
+# 默认目录通常为：C:\Program Files\GTK3-Runtime Win64\bin
+# 或设置环境变量 GTK_RUNTIME_BIN 指向该 bin 目录
 
 # 或者使用备选方案
 pip install pdfkit
@@ -584,7 +603,64 @@ git push origin feature/new-collector
 - **讨论**：加入项目Discussions
 - **邮件**：联系维护者
 
-## 19. 致谢
+## 19. proj-analyser（项目级 API 分析）
+
+AutoProfiler 新增了 `proj-analyser` 组件，用于中大型项目的性能相关分析（不仅限单文件）。
+
+接口1：启动项目分析
+
+```http
+POST /api/proj-analyser/analyze
+Content-Type: application/json
+
+{
+  "project_path": "E:/MY_WORK/CS/etrip-profiling/autoprofiler",
+  "query": ["performance", "api", "bottleneck"],
+  "output_language": "zh",
+  "top_files": 12,
+  "token_budget": 12000,
+  "max_rounds": 6,
+  "max_file_chars": 4000
+}
+```
+
+接口2：查询进度/结果
+
+```http
+GET /api/proj-analyser/analysis/<analysis_id>
+```
+
+分析产物会写入目标项目目录：
+
+- `<repo>/.autoprofiler_proj_analyser/report_project_api.md`
+- `<repo>/.autoprofiler_proj_analyser/api_dialogue.json`
+- `<repo>/.autoprofiler_proj_analyser/analysis_context.json`
+- `<repo>/.autoprofiler_proj_analyser/focus_plan.json`
+
+同时会镜像到 `docs/generated/project/` 便于查看：
+
+- `<repo>/docs/generated/project/report_project_api.md`
+- `<repo>/docs/generated/project/report_project_api.html`
+- `<repo>/docs/generated/project/report_project_context.json`
+- `<repo>/docs/generated/project/report_project_focus.json`
+
+说明：
+
+- 默认复用现有 DeepSeek 配置（`/api/deepseek/config`）
+- 支持本地模型配置（OpenAI 兼容接口）
+- 支持输出语言配置 `output_language`（`zh` / `en`），并作用于 API 提示词与报告语言
+- 使用增量对话协议（`need_files` / `final_report`）降低 token 开销
+- 支持离线烟测：设置 `PROJ_ANALYSER_FAKE_CHAT=1`
+- 若未配置 API/本地模型，系统会自动降级为本地规则分析（`fallback_local`）
+
+### 前端使用方式（新）
+
+- 在首页选择分析模式：`单文件分析` 或 `整项目分析`
+- 输入目标的**绝对路径**
+- 在 DeepSeek 配置中选择 AI 输出语言（`中文` / `English`）
+- 整项目模式下如果未检测到 API/本地模型，会提示输入 API key 并可保存；若跳过则继续本地降级分析
+
+## 20. 致谢
 
 感谢以下开源项目的贡献：
 - **Flask** - Web框架

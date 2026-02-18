@@ -1,7 +1,9 @@
 """
 格式转换器
 """
+import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -247,9 +249,49 @@ def convert_markdown_to_html(markdown_text: str) -> str:
     
     return styled_html
 
+
+def _configure_windows_gtk_runtime() -> None:
+    """Prepare GTK runtime search path for WeasyPrint on Windows."""
+    if sys.platform != "win32":
+        return
+
+    candidates = []
+    custom_bin = os.environ.get("GTK_RUNTIME_BIN")
+    if custom_bin:
+        candidates.append(Path(custom_bin))
+
+    candidates.extend(
+        [
+            Path(r"C:\Program Files\GTK3-Runtime Win64\bin"),
+            Path(r"C:\Program Files\GTK3 Runtime Win64\bin"),
+            Path(r"C:\Program Files\GTK3-Runtime\bin"),
+            Path(r"C:\Program Files\GTK3 Runtime\bin"),
+            Path(r"C:\GTK3-Runtime Win64\bin"),
+        ]
+    )
+
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+
+        candidate_str = str(candidate)
+        current_path = os.environ.get("PATH", "")
+        if candidate_str not in current_path.split(os.pathsep):
+            os.environ["PATH"] = f"{candidate_str}{os.pathsep}{current_path}" if current_path else candidate_str
+
+        if hasattr(os, "add_dll_directory"):
+            try:
+                os.add_dll_directory(candidate_str)
+            except OSError:
+                pass
+
+        return
+
+
 def convert_markdown_to_pdf(markdown_text: str, filename: str, upload_folder: Path) -> str:
     """将Markdown转换为PDF"""
     try:
+        _configure_windows_gtk_runtime()
         import markdown
         from weasyprint import HTML
         
@@ -374,8 +416,8 @@ def convert_markdown_to_pdf(markdown_text: str, filename: str, upload_folder: Pa
         
         return str(pdf_path)
         
-    except ImportError:
-        # 备用方案
+    except (ImportError, OSError) as e:
+        print(f"PDF转换不可用，缺少依赖或系统库: {e}")
         return None
     except Exception as e:
         print(f"PDF转换失败: {e}")

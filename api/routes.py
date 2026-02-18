@@ -5,10 +5,12 @@ from flask import render_template, jsonify, request, send_file
 from pathlib import Path
 import json
 import uuid
+import threading
 
 from analysis.manager import analysis_manager
 from analysis.task import analyze_python_file
 from utils.file_handlers import save_uploaded_file
+from models.deepseek_config import DeepSeekConfig
 
 def register_routes(app):
     """注册主要路由"""
@@ -38,11 +40,10 @@ def register_routes(app):
                 try:
                     deepseek_config = json.loads(deepseek_config)
                 except:
-                    from models.deepseek_config import DeepSeekConfig
                     deepseek_config = DeepSeekConfig.load()
             else:
-                from models.deepseek_config import DeepSeekConfig
                 deepseek_config = DeepSeekConfig.load()
+            deepseek_config = DeepSeekConfig.normalize_config(deepseek_config)
             
             # 创建分析任务
             analysis_id = analysis_manager.create_analysis(
@@ -52,7 +53,6 @@ def register_routes(app):
             )
             
             # 启动分析线程
-            import threading
             thread = threading.Thread(
                 target=analyze_python_file,
                 args=(file_path, analysis_id, deepseek_config, app.config['UPLOAD_FOLDER']),
@@ -68,6 +68,51 @@ def register_routes(app):
             
         except Exception as e:
             return jsonify({"success": False, "error": f"上传失败: {str(e)}"}), 500
+
+    @app.route('/api/analyze-file-path', methods=['POST'])
+    def analyze_file_by_path():
+        """通过绝对路径分析单个Python文件"""
+        try:
+            payload = request.get_json(silent=True) or {}
+            file_path = str(payload.get('file_path', '')).strip()
+            if not file_path:
+                return jsonify({"success": False, "error": "file_path 不能为空"}), 400
+
+            file_obj = Path(file_path).resolve()
+            if not file_obj.exists() or not file_obj.is_file():
+                return jsonify({"success": False, "error": f"文件不存在: {file_obj}"}), 400
+            if file_obj.suffix.lower() not in ['.py', '.pyw']:
+                return jsonify({"success": False, "error": "仅支持 .py/.pyw 文件"}), 400
+
+            deepseek_config = payload.get('deepseek_config')
+            if not deepseek_config:
+                deepseek_config = DeepSeekConfig.load()
+            if 'output_language' in payload:
+                deepseek_config = dict(deepseek_config or {})
+                deepseek_config['output_language'] = payload.get('output_language')
+            deepseek_config = DeepSeekConfig.normalize_config(deepseek_config)
+
+            analysis_id = analysis_manager.create_analysis(
+                str(file_obj),
+                file_obj.name,
+                deepseek_config
+            )
+
+            thread = threading.Thread(
+                target=analyze_python_file,
+                args=(str(file_obj), analysis_id, deepseek_config, app.config['UPLOAD_FOLDER']),
+                daemon=True
+            )
+            thread.start()
+
+            return jsonify({
+                'success': True,
+                'analysis_id': analysis_id,
+                'filename': file_obj.name,
+                'file_path': str(file_obj)
+            })
+        except Exception as e:
+            return jsonify({"success": False, "error": f"路径分析启动失败: {str(e)}"}), 500
     
     @app.route('/api/analysis/<analysis_id>')
     def get_analysis_status(analysis_id):

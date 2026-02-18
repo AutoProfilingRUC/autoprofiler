@@ -40,20 +40,46 @@
         </div>
         
         <div class="subtitle">
-            上传Python文件进行全面的性能分析，包括性能指标收集、代码结构分析，并结合DeepSeek AI提供智能优化建议。
+            支持单文件与整项目性能分析。请输入目标的绝对路径，系统会自动选择 API / 本地模型 / 本地降级分析策略。
         </div>
         
-        <div class="upload-area" id="dropArea">
+        <div class="upload-area" id="dropArea" style="cursor: default;">
             <div class="upload-icon">
-                <i class="fas fa-cloud-upload-alt"></i>
+                <i class="fas fa-folder-tree"></i>
             </div>
-            <div class="upload-text">拖放Python文件到此处 或 点击选择文件</div>
-            <input type="file" id="fileInput" accept=".py,.pyw" style="display: none;">
-            <button class="btn" onclick="document.getElementById('fileInput').click()">
-                <i class="fas fa-file-code"></i>
-                选择文件
-            </button>
-            <div class="upload-hint">支持 .py, .pyw 文件，最大50MB</div>
+            <div class="upload-text">选择分析模式并输入绝对路径</div>
+            <div class="path-form">
+                <div class="mode-switch">
+                    <label>
+                        <input type="radio" name="analysisMode" id="analysisModeFile" value="file" checked>
+                        单文件分析
+                    </label>
+                    <label>
+                        <input type="radio" name="analysisMode" id="analysisModeProject" value="project">
+                        整项目分析
+                    </label>
+                </div>
+                <input
+                    type="text"
+                    id="targetPath"
+                    class="form-control"
+                    placeholder="请输入绝对路径，例如 E:\\MY_WORK\\CS\\etrip-profiling\\autoprofiler\\analysis\\task.py"
+                >
+                <input
+                    type="text"
+                    id="projectQuery"
+                    class="form-control"
+                    placeholder="项目分析关键词（可选，逗号分隔，如 perf, db, api）"
+                    style="display:none; margin-top:10px;"
+                >
+                <button class="btn" onclick="startPathAnalysis()" style="margin-top: 12px;">
+                    <i class="fas fa-play"></i>
+                    开始分析
+                </button>
+            </div>
+            <div class="upload-hint">
+                单文件模式仅支持 .py/.pyw；项目模式会输出到目标目录的 <code>.autoprofiler_proj_analyser</code>。
+            </div>
         </div>
         
         <div class="progress-container" id="progress">
@@ -163,6 +189,15 @@
                            placeholder="deepseek-chat">
                     <div class="help-text">可选的DeepSeek模型名称</div>
                 </div>
+
+                <div class="form-group">
+                    <label for="outputLanguage">AI输出语言</label>
+                    <select id="outputLanguage" class="form-control">
+                        <option value="zh">中文</option>
+                        <option value="en">English</option>
+                    </select>
+                    <div class="help-text">用于单文件与整项目 API 提示词和报告输出语言</div>
+                </div>
                 
                 <div class="form-group">
                     <label>分析选项</label>
@@ -184,6 +219,25 @@
                     <input type="range" id="temperature" class="form-control" min="0" max="1" step="0.1" value="0.3">
                     <div class="help-text" id="temperatureValue">0.3 (0=确定性高, 1=创造性高)</div>
                 </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="useLocalModel">
+                        使用本地模型（OpenAI兼容接口）
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="localApiUrl">本地模型 API 地址</label>
+                    <input type="text" id="localApiUrl" class="form-control" placeholder="http://127.0.0.1:11434/v1/chat/completions">
+                </div>
+                <div class="form-group">
+                    <label for="localModelName">本地模型名称</label>
+                    <input type="text" id="localModelName" class="form-control" placeholder="qwen2.5-coder:7b-instruct">
+                </div>
+                <div class="form-group">
+                    <label for="localApiKey">本地模型 API Key（可选）</label>
+                    <input type="password" id="localApiKey" class="form-control password" placeholder="如本地服务需要可填写">
+                </div>
                 
                 <div class="config-actions">
                     <button type="button" class="btn btn-success" onclick="saveDeepSeekConfig()">
@@ -203,6 +257,7 @@
     <!-- 通知框 -->
     <div class="notification" id="notification"></div>
     
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script>
         // 页面加载完成后初始化
@@ -215,8 +270,10 @@
             const statusIndicator = document.getElementById('statusIndicator');
             const statusText = document.getElementById('deepseekStatusText');
             const optionsElement = document.getElementById('deepseekOptions');
-            
-            if (config && config.api_key) {
+            const hasApi = !!(config && config.api_key && config.api_url && config.model);
+            const hasLocal = !!(config && config.use_local_model && config.local_api_url && config.local_model);
+
+            if (hasApi || hasLocal) {
                 statusIndicator.style.backgroundColor = '#28a745';
                 statusText.innerHTML = '状态: <span style="color:#28a745">已配置 ✓</span>';
             } else {
@@ -227,7 +284,11 @@
             if (optionsElement && config) {
                 const blackboxStatus = config.enable_blackbox ? '✓ 启用' : '✗ 禁用';
                 const whiteboxStatus = config.enable_whitebox ? '✓ 启用' : '✗ 禁用';
+                const llmMode = hasLocal ? `本地模型(${config.local_model || '未命名'})` : (hasApi ? `远程API(${config.model || 'deepseek-chat'})` : '无');
+                const outputLanguage = config.output_language === 'en' ? 'English' : '中文';
                 optionsElement.innerHTML = `
+                    <div><small>输出语言: ${outputLanguage}</small></div>
+                    <div><small>LLM模式: ${llmMode}</small></div>
                     <div><small>黑盒分析: ${blackboxStatus}</small></div>
                     <div><small>白盒分析: ${whiteboxStatus}</small></div>
                 `;
@@ -245,9 +306,14 @@
                         document.getElementById('apiKey').value = config.api_key || '';
                         document.getElementById('apiUrl').value = config.api_url || 'https://api.deepseek.com/v1/chat/completions';
                         document.getElementById('model').value = config.model || 'deepseek-chat';
+                        document.getElementById('outputLanguage').value = config.output_language || 'zh';
                         document.getElementById('enableBlackbox').checked = config.enable_blackbox !== false;
                         document.getElementById('enableWhitebox').checked = config.enable_whitebox !== false;
                         document.getElementById('temperature').value = config.temperature || 0.3;
+                        document.getElementById('useLocalModel').checked = !!config.use_local_model;
+                        document.getElementById('localApiUrl').value = config.local_api_url || 'http://127.0.0.1:11434/v1/chat/completions';
+                        document.getElementById('localModelName').value = config.local_model || '';
+                        document.getElementById('localApiKey').value = config.local_api_key || '';
                         document.getElementById('temperatureValue').textContent = 
                             (config.temperature || 0.3) + ' (0=确定性高, 1=创造性高)';
                     }
@@ -286,9 +352,14 @@
                 api_key: document.getElementById('apiKey').value.trim(),
                 api_url: document.getElementById('apiUrl').value.trim() || 'https://api.deepseek.com/v1/chat/completions',
                 model: document.getElementById('model').value.trim() || 'deepseek-chat',
+                output_language: document.getElementById('outputLanguage').value || 'zh',
                 enable_blackbox: document.getElementById('enableBlackbox').checked,
                 enable_whitebox: document.getElementById('enableWhitebox').checked,
-                temperature: parseFloat(document.getElementById('temperature').value)
+                temperature: parseFloat(document.getElementById('temperature').value),
+                use_local_model: document.getElementById('useLocalModel').checked,
+                local_api_url: document.getElementById('localApiUrl').value.trim() || 'http://127.0.0.1:11434/v1/chat/completions',
+                local_model: document.getElementById('localModelName').value.trim(),
+                local_api_key: document.getElementById('localApiKey').value.trim()
             };
             
             try {
@@ -336,8 +407,12 @@
         
         async function testDeepSeekConnection() {
             const apiKey = document.getElementById('apiKey').value.trim();
-            if (!apiKey) {
-                showNotification('请输入API密钥', 'warning');
+            const useLocal = document.getElementById('useLocalModel').checked;
+            const localApiUrl = document.getElementById('localApiUrl').value.trim();
+            const localModelName = document.getElementById('localModelName').value.trim();
+
+            if (!apiKey && !(useLocal && localApiUrl && localModelName)) {
+                showNotification('请填写 API Key，或启用并配置本地模型', 'warning');
                 return;
             }
             
@@ -351,7 +426,13 @@
                     },
                     body: JSON.stringify({
                         api_key: apiKey,
-                        api_url: document.getElementById('apiUrl').value.trim()
+                        api_url: document.getElementById('apiUrl').value.trim(),
+                        model: document.getElementById('model').value.trim() || 'deepseek-chat',
+                        output_language: document.getElementById('outputLanguage').value || 'zh',
+                        use_local_model: useLocal,
+                        local_api_url: localApiUrl,
+                        local_model: localModelName,
+                        local_api_key: document.getElementById('localApiKey').value.trim()
                     })
                 });
                 
@@ -369,16 +450,18 @@
         function showHelp() {
             alert(`AutoProfiler 使用帮助
 
-1. 基本使用：
-   - 拖放或选择Python文件上传
-   - 等待分析完成
-   - 查看不同格式的报告
+1. 分析入口：
+   - 选择“单文件分析”或“整项目分析”
+   - 输入目标绝对路径
+   - 点击“开始分析”
 
 2. DeepSeek AI分析：
    - 点击"DeepSeek配置"按钮设置API密钥
+   - 或启用本地模型（OpenAI兼容接口）
    - 支持黑盒分析（基于性能数据）
    - 支持白盒分析（基于代码结构）
    - 配置后分析报告将包含AI建议
+   - 未配置模型时，项目分析会自动降级为本地规则分析
 
 3. 报告格式：
    - HTML预览：格式化的完整报告
@@ -392,7 +475,7 @@
    - PDF：适合打印和分享
    - Markdown：适合编辑和存档
 
-注意：DeepSeek API需要有效的API密钥，您可以在DeepSeek官网申请。`);
+注意：单文件模式仅支持 .py/.pyw；项目模式会在目标目录写入 .autoprofiler_proj_analyser 产物。`);
         }
         
         // 温度滑块事件
@@ -405,6 +488,16 @@
         if (!window.deepseekConfig) {
             window.deepseekConfig = {};
         }
+
+        // 分析模式切换
+        const modeInputs = document.querySelectorAll('input[name="analysisMode"]');
+        modeInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                const queryBox = document.getElementById('projectQuery');
+                if (!queryBox) return;
+                queryBox.style.display = this.value === 'project' ? 'block' : 'none';
+            });
+        });
         
         // 暴露函数到全局作用域
         window.openDeepSeekConfig = openDeepSeekConfig;
@@ -413,6 +506,7 @@
         window.clearDeepSeekConfig = clearDeepSeekConfig;
         window.testDeepSeekConnection = testDeepSeekConnection;
         window.showHelp = showHelp;
+        window.updateDeepSeekStatus = updateDeepSeekStatus;
     </script>
 </body>
 </html>

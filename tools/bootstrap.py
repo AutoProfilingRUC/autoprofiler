@@ -10,8 +10,20 @@ def run(cmd, cwd=None):
     subprocess.check_call(cmd, cwd=cwd)
 
 
+def check_weasyprint_runtime(venv_python: Path) -> None:
+    """Best-effort check for WeasyPrint runtime availability."""
+    check_cmd = [str(venv_python), "-c", "import weasyprint; print('weasyprint-runtime-ok')"]
+    try:
+        run(check_cmd)
+    except subprocess.CalledProcessError:
+        print("[warn] WeasyPrint is installed, but runtime libraries are missing.")
+        if platform.system().lower().startswith("win"):
+            print("[warn] On Windows, install GTK3 runtime for PDF export support.")
+            print("[warn] Expected default path: C:\\Program Files\\GTK3-Runtime Win64\\bin")
+
+
 def main():
-    project_root = Path(__file__).resolve().parents[1]  # tests/Autoprof
+    project_root = Path(__file__).resolve().parents[1]
     venv_dir = project_root / ".venv"
     req_file = project_root / "requirements.txt"
 
@@ -31,10 +43,8 @@ def main():
     # 2) locate venv python
     if platform.system().lower().startswith("win"):
         venv_python = venv_dir / "Scripts" / "python.exe"
-        venv_pip = venv_dir / "Scripts" / "pip.exe"
     else:
         venv_python = venv_dir / "bin" / "python"
-        venv_pip = venv_dir / "bin" / "pip"
 
     if not venv_python.exists():
         print(f"[error] venv python not found at: {venv_python}")
@@ -42,7 +52,10 @@ def main():
 
     # 3) upgrade pip + install requirements
     run([str(venv_python), "-m", "pip", "install", "-U", "pip"])
-    run([str(venv_pip), "install", "-r", str(req_file)])
+    run([str(venv_python), "-m", "pip", "install", "-r", str(req_file)])
+
+    # 4) optional runtime check
+    check_weasyprint_runtime(venv_python)
 
     print("\n[ok] Environment ready.")
     if platform.system().lower().startswith("win"):
@@ -52,7 +65,10 @@ def main():
 
     print("\nNext:")
     print(f"  cd {project_root}")
-    print("  source .venv/bin/activate")
+    if platform.system().lower().startswith("win"):
+        print("  .\\.venv\\Scripts\\activate")
+    else:
+        print("  source .venv/bin/activate")
     print("  python -m unittest tests.test_autoprofiler_template")
 
 

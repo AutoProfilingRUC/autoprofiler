@@ -18,6 +18,14 @@ This project **does NOT assume**:
 
 AutoProfiler is designed as a **black-box / semi-black-box profiler**, similar in philosophy to tools like `perf`, `py-spy`, or `valgrind`, but specialized for **Python ecosystems** and **AI-assisted explanation**.
 
+Project docs are consolidated under `docs/`:
+
+* `docs/README.md`: documentation index
+* `docs/reference/`: current reference docs
+* `docs/changelog.md`: change history
+* `docs/archive/`: historical design docs kept for context
+* `docs/generated/`: runtime-generated reports (git-ignored by default)
+
 ---
 
 ## 2. Non-Goals (Very Important)
@@ -93,6 +101,14 @@ python3 tools/bootstrap.py
 source .venv/bin/activate
 ```
 
+Windows equivalent:
+
+```powershell
+python -m venv .venv
+python tools/bootstrap.py
+.\.venv\Scripts\activate
+```
+
 This will:
 
 * Create a virtual environment
@@ -105,6 +121,14 @@ Create an isolated environment:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+python -m pip install --upgrade pip
+```
+
+Windows equivalent:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate
 python -m pip install --upgrade pip
 ```
 
@@ -314,6 +338,10 @@ If you see `perf` permission errors, AutoProfiler will continue and emit a warni
 
 * `--cwd` and `--env` work for running Windows executables.
 * `psutil` data collection works best-effort on Windows.
+* PDF export via `weasyprint` needs GTK runtime (`libgobject-2.0-0.dll`).
+  If import fails, install GTK runtime and ensure
+  `C:\Program Files\GTK3-Runtime Win64\bin` is available in `PATH`
+  (or set `GTK_RUNTIME_BIN` to that `bin` directory).
 * ETW profiling is **not** implemented in the MVP; see `EtwCollector` placeholder.
 
 The template test prints the generated markdown report to stdout so you can quickly inspect findings without wiring up additional code.
@@ -599,6 +627,8 @@ The project includes several test files in the `tests/` directory:
 * `test_new_patterns.py` - Tests for new performance pattern detection
 * `test_extended.py` - Extended tests with longer-running workloads
 * `test_complete_demo.py` - Complete demonstration of all features
+* `test_proj_analyser_json.py` - JSON action parser tests for project API dialogue
+* `test_proj_analyser_focus.py` - Focus planning tests for project-level file selection
 
 Run tests using:
 
@@ -615,7 +645,67 @@ python tests/test_extended.py
 
 ---
 
-## 17. Guiding Philosophy
+## 17. proj-analyser API (Project-Level, medium/large repos)
+
+AutoProfiler now includes a project-level API component named `proj-analyser`.
+It is designed for medium/large repositories where single-file analysis is not enough.
+
+Endpoint 1: start analysis
+
+```http
+POST /api/proj-analyser/analyze
+Content-Type: application/json
+
+{
+  "project_path": "E:/MY_WORK/CS/etrip-profiling/autoprofiler",
+  "query": ["performance", "api", "bottleneck"],
+  "output_language": "zh",
+  "top_files": 12,
+  "token_budget": 12000,
+  "max_rounds": 6,
+  "max_file_chars": 4000
+}
+```
+
+Endpoint 2: poll status/result
+
+```http
+GET /api/proj-analyser/analysis/<analysis_id>
+```
+
+Output artifacts are written into:
+
+* `<repo>/.autoprofiler_proj_analyser/report_project_api.md`
+* `<repo>/.autoprofiler_proj_analyser/api_dialogue.json`
+* `<repo>/.autoprofiler_proj_analyser/analysis_context.json`
+* `<repo>/.autoprofiler_proj_analyser/focus_plan.json`
+
+Mirrored review copies are written into:
+
+* `<repo>/docs/generated/project/report_project_api.md`
+* `<repo>/docs/generated/project/report_project_api.html`
+* `<repo>/docs/generated/project/report_project_context.json`
+* `<repo>/docs/generated/project/report_project_focus.json`
+
+Notes:
+
+* Uses the same DeepSeek config (`/api/deepseek/config`) by default
+* Supports local-model config via OpenAI-compatible endpoint
+* Supports language selection via `output_language` (`zh` / `en`) and applies it to API prompts/reports
+* Supports incremental model dialogue (`need_files` / `final_report`) to reduce token usage
+* Supports fake mode for offline smoke tests: `PROJ_ANALYSER_FAKE_CHAT=1`
+* If no API/local model is configured, it automatically falls back to local rule-based analysis (`fallback_local`)
+
+Frontend flow (updated):
+
+* Choose `single file` or `project` mode on the web page
+* Input an absolute path
+* Choose AI output language (`中文` / `English`) in DeepSeek settings
+* In project mode, if no API/local model exists, UI prompts for API key and saves config; user can skip and continue fallback mode
+
+---
+
+## 18. Guiding Philosophy
 
 > AutoProfiler is not an optimizer.
 > It is an **automated performance analyst**.

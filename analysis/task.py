@@ -8,12 +8,16 @@ import json
 from analysis.manager import analysis_manager
 from analysis.code_analyzer import CodeAnalyzer
 from analysis.deepseek_analyzer import DeepSeekAnalyzer
+from models.deepseek_config import DeepSeekConfig
 from utils.converters import convert_markdown_to_html, convert_markdown_to_pdf
 from utils.helpers import safe_get_artifact_type, simplify_obj
 
 def analyze_python_file(file_path, analysis_id, deepseek_config, upload_folder):
     """分析Python文件（包含DeepSeek分析）"""
     try:
+        output_language = DeepSeekConfig.normalize_output_language(
+            (deepseek_config or {}).get("output_language", "zh")
+        )
         analysis_manager.update_status(
             analysis_id, 
             'analyzing', 
@@ -131,7 +135,7 @@ def analyze_python_file(file_path, analysis_id, deepseek_config, upload_folder):
         
         # DeepSeek黑盒分析
         deepseek_results = {}
-        if deepseek_config.get('enable_blackbox', True) and deepseek_config.get('api_key'):
+        if deepseek_config.get('enable_blackbox', True) and DeepSeekConfig.has_any_model(deepseek_config):
             analysis_manager.update_status(
                 analysis_id,
                 'deepseek_blackbox',
@@ -177,7 +181,7 @@ def analyze_python_file(file_path, analysis_id, deepseek_config, upload_folder):
             
             code_structure = CodeAnalyzer.analyze_code_structure(file_path)
             
-            if deepseek_config.get('api_key'):
+            if DeepSeekConfig.has_any_model(deepseek_config):
                 analysis_manager.update_status(
                     analysis_id,
                     'deepseek_whitebox',
@@ -224,13 +228,19 @@ def analyze_python_file(file_path, analysis_id, deepseek_config, upload_folder):
         # 添加DeepSeek分析结果到报告
         if deepseek_results:
             markdown_report += "\n\n" + "="*60 + "\n"
-            markdown_report += "# DeepSeek AI 分析结果\n\n"
+            markdown_report += (
+                "# DeepSeek AI Analysis Results\n\n"
+                if output_language == "en"
+                else "# DeepSeek AI 分析结果\n\n"
+            )
             
             if 'blackbox' in deepseek_results:
-                markdown_report += f"## 黑盒性能分析\n\n{deepseek_results['blackbox']}\n\n"
+                section_title = "## Blackbox Performance Analysis" if output_language == "en" else "## 黑盒性能分析"
+                markdown_report += f"{section_title}\n\n{deepseek_results['blackbox']}\n\n"
             
             if 'whitebox' in deepseek_results:
-                markdown_report += f"## 白盒代码分析\n\n{deepseek_results['whitebox']}\n\n"
+                section_title = "## Whitebox Code Analysis" if output_language == "en" else "## 白盒代码分析"
+                markdown_report += f"{section_title}\n\n{deepseek_results['whitebox']}\n\n"
         
         # 添加代码结构分析结果（如果没有DeepSeek分析）
         if code_structure and not deepseek_results.get('whitebox'):
