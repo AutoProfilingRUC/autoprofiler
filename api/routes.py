@@ -8,6 +8,7 @@ import uuid
 import threading
 
 from analysis.manager import analysis_manager
+from analysis.code_analyzer import CodeAnalyzer
 from analysis.task import analyze_python_file
 from utils.file_handlers import save_uploaded_file
 from models.deepseek_config import DeepSeekConfig
@@ -71,7 +72,7 @@ def register_routes(app):
 
     @app.route('/api/analyze-file-path', methods=['POST'])
     def analyze_file_by_path():
-        """通过绝对路径分析单个Python文件"""
+        """通过绝对路径分析单个源码文件（多语言）"""
         try:
             payload = request.get_json(silent=True) or {}
             file_path = str(payload.get('file_path', '')).strip()
@@ -81,8 +82,14 @@ def register_routes(app):
             file_obj = Path(file_path).resolve()
             if not file_obj.exists() or not file_obj.is_file():
                 return jsonify({"success": False, "error": f"文件不存在: {file_obj}"}), 400
-            if file_obj.suffix.lower() not in ['.py', '.pyw']:
-                return jsonify({"success": False, "error": "仅支持 .py/.pyw 文件"}), 400
+            if not CodeAnalyzer.is_supported_file(file_obj):
+                supported = ", ".join(CodeAnalyzer.supported_extensions())
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": f"当前单文件模式不支持该后缀。支持: {supported}",
+                    }
+                ), 400
 
             deepseek_config = payload.get('deepseek_config')
             if not deepseek_config:

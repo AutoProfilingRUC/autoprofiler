@@ -700,6 +700,7 @@ Frontend flow (updated):
 
 * Choose `single file` or `project` mode on the web page
 * Input an absolute path
+* Single-file mode supports multi-language source files (`.py/.js/.ts/.java/.go/.rs/.cpp/.cs/...`)
 * Choose AI output language (`中文` / `English`) in DeepSeek settings
 * In project mode, if no API/local model exists, UI prompts for API key and saves config; user can skip and continue fallback mode
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoProfiler - Python性能分析工具</title>
+    <title>AutoProfiler - 多语言性能分析工具</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -12,7 +12,7 @@
         <div class="header-actions">
             <h1>
                 <i class="fas fa-chart-line"></i>
-                AutoProfiler - Python性能分析
+                AutoProfiler - 多语言性能分析
             </h1>
             <div>
                 <button class="btn btn-info" onclick="openDeepSeekConfig()">
@@ -63,7 +63,7 @@
                     type="text"
                     id="targetPath"
                     class="form-control"
-                    placeholder="请输入绝对路径，例如 E:\\MY_WORK\\CS\\etrip-profiling\\autoprofiler\\analysis\\task.py"
+                    placeholder="请输入绝对路径，例如 E:\\MY_WORK\\CS\\etrip-profiling\\autoprofiler\\analysis\\task.py 或 E:\\repo\\service\\handler.ts"
                 >
                 <input
                     type="text"
@@ -78,7 +78,7 @@
                 </button>
             </div>
             <div class="upload-hint">
-                单文件模式仅支持 .py/.pyw；项目模式会输出到目标目录的 <code>.autoprofiler_proj_analyser</code>。
+                单文件模式支持多语言源码文件（如 .py/.js/.ts/.java/.go/.rs/.cpp/.cs 等）；项目模式会输出到目标目录的 <code>.autoprofiler_proj_analyser</code>。
             </div>
         </div>
         
@@ -475,7 +475,7 @@
    - PDF：适合打印和分享
    - Markdown：适合编辑和存档
 
-注意：单文件模式仅支持 .py/.pyw；项目模式会在目标目录写入 .autoprofiler_proj_analyser 产物。`);
+注意：单文件模式支持多语言源码后缀（如 .py/.js/.ts/.java/.go/.rs/.cpp/.cs）；项目模式会在目标目录写入 .autoprofiler_proj_analyser 产物。`);
         }
         
         // 温度滑块事件

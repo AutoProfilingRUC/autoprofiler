@@ -657,6 +657,7 @@ GET /api/proj-analyser/analysis/<analysis_id>
 
 - 在首页选择分析模式：`单文件分析` 或 `整项目分析`
 - 输入目标的**绝对路径**
+- 单文件模式支持多语言源码后缀（如 `.py/.js/.ts/.java/.go/.rs/.cpp/.cs/...`）
 - 在 DeepSeek 配置中选择 AI 输出语言（`中文` / `English`）
 - 整项目模式下如果未检测到 API/本地模型，会提示输入 API key 并可保存；若跳过则继续本地降级分析
 

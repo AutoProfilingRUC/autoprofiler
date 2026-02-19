@@ -87,15 +87,43 @@ class DeepSeekAnalyzer:
     def _create_system_prompt(output_language: str) -> str:
         if output_language == "en":
             return (
-                "You are a senior Python performance engineer. "
-                "Analyze the provided performance data or code and provide concrete, actionable optimizations."
+                "You are a senior software performance engineer. "
+                "Analyze the provided profiling/static signals and source structure, then provide concrete actionable optimizations."
             )
-        return "你是一个专业的Python性能分析专家，请分析提供的性能数据或代码，给出具体的优化建议。"
+        return "你是一个专业的软件性能分析专家，请分析提供的性能信号或代码结构，给出具体可执行的优化建议。"
 
     @staticmethod
     def _create_blackbox_prompt(performance_data: dict, output_language: str = "zh") -> str:
         """创建黑盒分析提示词"""
+        data = performance_data or {}
+        language = str(data.get("language", "unknown"))
+        analysis_mode = str(data.get("analysis_mode", "unknown"))
+        is_static = analysis_mode.startswith("static")
+
         if output_language == "en":
+            if is_static:
+                return f"""Analyze the following static performance signals for a single source file and provide practical optimization guidance:
+
+Source language: {language}
+Analysis mode: {analysis_mode}
+Signals:
+{json.dumps(performance_data, indent=2, ensure_ascii=False)}
+
+Please structure your response with:
+
+## Static Performance Analysis Report
+
+### Key Risks
+1. **Top risk hotspots**
+2. **Likely root causes**
+
+### Optimization Actions
+1. **Quick fixes**
+2. **Medium-term refactors**
+3. **Validation plan**
+
+Reply in English with concrete and actionable steps."""
+
             return f"""Analyze the following Python performance data, identify bottlenecks, and provide actionable optimization recommendations:
 
 Performance data:
@@ -120,6 +148,29 @@ Please structure your response with:
 - Maintainability improvement:
 
 Reply in English with concrete and actionable steps."""
+
+        if is_static:
+            return f"""请基于以下单文件静态性能信号进行分析，并给出可落地的优化建议：
+
+源码语言：{language}
+分析模式：{analysis_mode}
+信号数据：
+{json.dumps(performance_data, indent=2, ensure_ascii=False)}
+
+请按照以下格式输出：
+
+## 静态性能分析报告
+
+### 关键风险点
+1. **主要风险热点**
+2. **可能根因**
+
+### 优化动作
+1. **快速修复项**
+2. **中期重构项**
+3. **验证方案**
+
+请用中文回复，建议要具体、可操作。"""
 
         prompt = f"""请分析以下Python程序的性能数据，找出性能瓶颈并提供具体的优化建议：
 
@@ -151,9 +202,13 @@ Reply in English with concrete and actionable steps."""
     @staticmethod
     def _create_whitebox_prompt(code_structure: dict, output_language: str = "zh") -> str:
         """创建白盒分析提示词"""
-        if output_language == "en":
-            return f"""Analyze the following Python code structure, identify potential issues, and provide actionable improvements:
+        data = code_structure or {}
+        language = str(data.get("language") or data.get("basic_info", {}).get("language", "unknown"))
 
+        if output_language == "en":
+            return f"""Analyze the following source code structure, identify potential issues, and provide actionable improvements:
+
+Source language: {language}
 Code structure:
 {json.dumps(code_structure, indent=2, ensure_ascii=False)}
 
@@ -185,7 +240,9 @@ Please structure your response with:
 
 Reply in English with concrete and actionable steps."""
 
-        prompt = f"""请分析以下Python代码的结构，找出潜在的问题并提供具体的优化建议：
+        prompt = f"""请分析以下源码结构，找出潜在的问题并提供具体的优化建议：
+
+源码语言：{language}
 
 代码结构分析结果：
 {json.dumps(code_structure, indent=2, ensure_ascii=False)}
