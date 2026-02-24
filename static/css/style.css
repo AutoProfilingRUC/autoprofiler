@@ -95,6 +95,57 @@ h1 i {
     margin-top: 10px;
 }
 
+.capability-actions {
+    margin-top: 10px;
+}
+
+.system-capability-panel {
+    margin-top: 12px;
+    text-align: left;
+    background: #f8f9fa;
+    border: 1px solid #dfe6ee;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.system-capability-panel h4 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+}
+
+.system-capability-panel h5 {
+    margin: 0 0 8px 0;
+    color: #34495e;
+}
+
+.capability-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.capability-card {
+    background: #ffffff;
+    border: 1px solid #e4e7ea;
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.system-capability-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.system-capability-panel th,
+.system-capability-panel td {
+    border-bottom: 1px solid #eef1f4;
+    padding: 6px 4px;
+    text-align: left;
+    vertical-align: top;
+}
+
 .path-form {
     max-width: 860px;
     margin: 0 auto;
@@ -137,6 +188,13 @@ h1 i {
 .btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
 }
 
 .btn-secondary {

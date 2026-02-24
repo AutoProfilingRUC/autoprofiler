@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from proj_analyser.api_dialogue import run_api_dialogue
+from proj_analyser.service import _merge_report_sections
 
 
 class TestProjAnalyserPromptLanguage(unittest.TestCase):
@@ -69,6 +70,48 @@ class TestProjAnalyserPromptLanguage(unittest.TestCase):
         bootstrap = captured["messages"][1]["content"]
         self.assertIn("必须使用中文", system_prompt)
         self.assertIn('"output_language": "zh"', bootstrap)
+
+    def test_token_usage_aggregation(self):
+        def fake_call(runtime_config, messages, temperature, max_output_tokens):
+            return {
+                "content": '{"action":"final_report","title":"t","report_markdown":"ok"}',
+                "usage": {"prompt_tokens": 10, "completion_tokens": 25, "total_tokens": 35},
+            }
+
+        with patch("proj_analyser.api_dialogue.call_chat_api_openai_compatible", side_effect=fake_call):
+            result = run_api_dialogue(
+                repo_root=".",
+                scan_result=self._scan_result(),
+                focus_plan=self._focus_plan(),
+                runtime_config={"output_language": "zh"},
+                query_terms=["性能"],
+                max_rounds=1,
+            )
+
+        usage = result.get("token_usage_summary", {})
+        self.assertEqual(usage.get("prompt_tokens"), 10)
+        self.assertEqual(usage.get("completion_tokens"), 25)
+        self.assertEqual(usage.get("total_tokens"), 35)
+        self.assertEqual(usage.get("rounds_with_usage"), 1)
+
+    def test_report_includes_token_usage_section(self):
+        report = _merge_report_sections(
+            base_report="# Project Performance Report\n\nok",
+            scan_result=self._scan_result(),
+            focus_plan=self._focus_plan(),
+            analysis_mode="project_api",
+            runtime_mode="api",
+            rounds=2,
+            token_usage_summary={
+                "prompt_tokens": 11,
+                "completion_tokens": 22,
+                "total_tokens": 33,
+                "rounds_with_usage": 2,
+            },
+            output_language="en",
+        )
+        self.assertIn("## API Token Usage", report)
+        self.assertIn("- Total tokens: 33", report)
 
 
 if __name__ == "__main__":

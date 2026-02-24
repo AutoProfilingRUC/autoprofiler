@@ -69,16 +69,35 @@ function parseQueryTerms(input) {
 }
 
 function hasUsableModelConfig(cfg) {
-  const hasApi = !!(cfg && cfg.api_key && cfg.api_url && cfg.model);
+  const apiConfigured = !!(cfg && (cfg.api_key_configured || cfg.api_key));
+  const hasApi = !!(cfg && apiConfigured && cfg.api_url && cfg.model);
   const hasLocal = !!(cfg && cfg.use_local_model && cfg.local_api_url && cfg.local_model);
   return hasApi || hasLocal;
 }
 
 async function saveDeepseekConfigQuiet(config) {
+  const payload = {
+    api_key: (config && config.api_key) || "",
+    api_url:
+      (config && config.api_url) || "https://api.deepseek.com/v1/chat/completions",
+    model: (config && config.model) || "deepseek-chat",
+    output_language: (config && config.output_language) || "zh",
+    enable_blackbox: config && config.enable_blackbox !== false,
+    enable_whitebox: config && config.enable_whitebox !== false,
+    temperature:
+      typeof (config && config.temperature) === "number"
+        ? config.temperature
+        : 0.3,
+    use_local_model: !!(config && config.use_local_model),
+    local_api_url:
+      (config && config.local_api_url) || "http://127.0.0.1:11434/v1/chat/completions",
+    local_model: (config && config.local_model) || "",
+    local_api_key: (config && config.local_api_key) || "",
+  };
   const resp = await fetch("/api/deepseek/config", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(config),
+    body: JSON.stringify(payload),
   });
   const data = await resp.json();
   if (!resp.ok || !data.success) {
@@ -105,12 +124,18 @@ async function ensureModelConfigOrFallback() {
     model: cfg.model || "deepseek-chat",
   };
   await saveDeepseekConfigQuiet(next);
-  window.deepseekConfig = next;
+  window.deepseekConfig = {
+    ...cfg,
+    api_key: "",
+    api_key_configured: true,
+    api_url: next.api_url,
+    model: next.model,
+  };
   if (typeof window.updateDeepSeekStatus === "function") {
-    window.updateDeepSeekStatus(next);
+    window.updateDeepSeekStatus(window.deepseekConfig);
   }
   showNotification("API 配置已保存，将使用模型增强分析。", "success");
-  return next;
+  return window.deepseekConfig;
 }
 
 async function startPathAnalysis() {
@@ -138,16 +163,18 @@ async function startPathAnalysis() {
     }
 
     const endpoint = mode === "project" ? "/api/proj-analyser/analyze" : "/api/analyze-file-path";
+    const outputLanguage =
+      (deepseekConfig && deepseekConfig.output_language) || "zh";
     const payload =
       mode === "project"
         ? {
             project_path: targetPath,
             query,
-            deepseek_config: deepseekConfig,
+            output_language: outputLanguage,
           }
         : {
             file_path: targetPath,
-            deepseek_config: deepseekConfig,
+            output_language: outputLanguage,
           };
 
     const response = await fetch(endpoint, {
@@ -253,6 +280,7 @@ function displayStats(result) {
   const deepseekResults = result.deepseek_results || {};
   const codeStructure = result.code_structure || {};
   const isProject = !!result.analysis_mode;
+  const tokenUsage = result.token_usage_summary || {};
 
   let html = "";
   if (isProject) {
@@ -272,6 +300,14 @@ function displayStats(result) {
       <div class="stat-card">
         <div class="stat-value">${(result.focus_summary || {}).selected_count || 0}</div>
         <div class="stat-label">重点文件数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${tokenUsage.total_tokens || 0}</div>
+        <div class="stat-label">Token总量</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${tokenUsage.prompt_tokens || 0}/${tokenUsage.completion_tokens || 0}</div>
+        <div class="stat-label">Prompt/Completion</div>
       </div>
     `;
   } else {

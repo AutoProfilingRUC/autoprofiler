@@ -27,6 +27,8 @@ def build_session_report(
     cprofile_status: Optional[str] = None
     cprofile_empty = False
     child_cpu_avg: Optional[float] = None
+    child_process_avg: Optional[float] = None
+    psutil_include_children = False
 
     for artifact in session.artifacts:
         artifacts_payload.append(_artifact_payload(artifact))
@@ -44,6 +46,11 @@ def build_session_report(
                     avg = child_summary.get("avg")
                     if isinstance(avg, (int, float)):
                         child_cpu_avg = float(avg)
+                child_process_summary = metrics["summary"].get("child_process_count", {})
+                if isinstance(child_process_summary, dict):
+                    avg = child_process_summary.get("avg")
+                    if isinstance(avg, (int, float)):
+                        child_process_avg = float(avg)
             artifact_warnings = metrics.get("warnings")
             if isinstance(artifact_warnings, list):
                 warnings.extend(str(value) for value in artifact_warnings)
@@ -53,6 +60,8 @@ def build_session_report(
             if artifact.collector == "CProfileCollector":
                 cprofile_status = metrics.get("status")
                 cprofile_empty = bool(metrics.get("cprofile_empty"))
+            if artifact.collector == "PsutilProcessCollector":
+                psutil_include_children = bool(metrics.get("include_children"))
 
     report = {
         "schema_version": "1.0",
@@ -72,6 +81,14 @@ def build_session_report(
     }
     if collector_commands:
         report["metadata"]["collector_commands"] = collector_commands
+    if cprofile_status and psutil_include_children:
+        warnings.append(
+            "cProfile only profiles the attached Python process; child process call stacks are not captured"
+        )
+    if child_process_avg and child_process_avg > 0 and (not child_cpu_avg or child_cpu_avg > 0):
+        warnings.append(
+            "child process activity detected; cProfile attached to parent may miss child workload"
+        )
     if cprofile_empty and child_cpu_avg and child_cpu_avg > 10.0:
         warnings.append(
             "cProfile did not capture child process work; consider profiling children "

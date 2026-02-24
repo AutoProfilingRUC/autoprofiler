@@ -79,7 +79,11 @@ def register_routes(app):
             if not file_path:
                 return jsonify({"success": False, "error": "file_path 不能为空"}), 400
 
-            file_obj = Path(file_path).resolve()
+            raw_file_obj = Path(file_path)
+            if not raw_file_obj.is_absolute():
+                return jsonify({"success": False, "error": "file_path 必须是绝对路径"}), 400
+
+            file_obj = raw_file_obj.resolve()
             if not file_obj.exists() or not file_obj.is_file():
                 return jsonify({"success": False, "error": f"文件不存在: {file_obj}"}), 400
             if not CodeAnalyzer.is_supported_file(file_obj):

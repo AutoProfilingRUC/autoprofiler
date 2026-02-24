@@ -6,6 +6,7 @@ Single-file now supports:
 - Multi-language static analysis + AI whitebox/blackbox
 """
 import traceback
+import sys
 from pathlib import Path
 from time import perf_counter
 
@@ -15,6 +16,7 @@ from analysis.manager import analysis_manager
 from models.deepseek_config import DeepSeekConfig
 from utils.converters import convert_markdown_to_html, convert_markdown_to_pdf
 from utils.helpers import safe_get_artifact_type, simplify_obj
+from utils.runtime_capabilities import get_runtime_capabilities
 
 
 PYTHON_SUFFIXES = {".py", ".pyw"}
@@ -266,17 +268,31 @@ def _run_python_runtime_analysis(file_path, analysis_id, deepseek_config, upload
         progress=20,
         progress_text="正在运行性能分析...",
     )
+    runtime_caps = get_runtime_capabilities()
+    psutil_available = bool((runtime_caps.get("modules") or {}).get("psutil", True))
+
     file_path_obj = Path(file_path)
     target = TargetProgram(
-        command=["python", str(file_path_obj)],
+        command=[sys.executable, str(file_path_obj)],
         timeout=60,
         cwd=str(file_path_obj.parent),
     )
-    collectors = [PsutilCollector(sample_interval=0.1)]
+    collectors = []
+    if psutil_available:
+        collectors.append(PsutilCollector(sample_interval=0.1))
     try:
         collectors.append(CProfileCollector())
     except Exception:
         pass
+
+    if not collectors:
+        analysis_manager.update_status(
+            analysis_id,
+            "failed",
+            error="运行时采样组件不可用：请检查 psutil/cProfile 环境。",
+            progress_text="采样组件不可用",
+        )
+        return
 
     analysis_manager.update_status(
         analysis_id,

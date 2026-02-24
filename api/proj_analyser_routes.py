@@ -30,7 +30,11 @@ def register_proj_analyser_routes(app):
         if not project_path:
             return jsonify({"success": False, "error": "project_path 不能为空"}), 400
 
-        project_dir = Path(project_path).resolve()
+        raw_project_dir = Path(project_path)
+        if not raw_project_dir.is_absolute():
+            return jsonify({"success": False, "error": "project_path 必须是绝对路径"}), 400
+
+        project_dir = raw_project_dir.resolve()
         if not project_dir.exists() or not project_dir.is_dir():
             return jsonify({"success": False, "error": f"项目路径无效: {project_dir}"}), 400
 

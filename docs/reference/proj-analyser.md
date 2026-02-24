@@ -39,6 +39,12 @@ Primary outputs:
 - `.autoprofiler_proj_analyser/analysis_context.json`
 - `.autoprofiler_proj_analyser/focus_plan.json`
 
+`api_dialogue.json` includes:
+
+- per-round model actions and provided files (`logs`)
+- token usage aggregate (`token_usage_summary`)
+- token usage per round (`token_usage_rounds`)
+
 Mirrored docs outputs:
 
 - `docs/generated/project/report_project_api.md`

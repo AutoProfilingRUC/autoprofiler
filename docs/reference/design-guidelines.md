@@ -34,3 +34,9 @@ Use the pipeline `Runner -> Collectors -> Analyzers -> Reporter`.
 - Every finding should include evidence (file/path/metric).
 - On model failures, produce a deterministic fallback report instead of empty output.
 - Keep API errors observable in output status and logs.
+
+## Environment capability gating
+
+- Detect runtime capabilities before using optional features (`/api/system/capabilities`).
+- Prefer graceful downgrade over hard failure (e.g., PDF export disabled when dependencies are missing).
+- Avoid platform-specific command hardcoding for runtime execution (`sys.executable`).

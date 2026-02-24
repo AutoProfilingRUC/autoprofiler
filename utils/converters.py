@@ -1,11 +1,11 @@
 """
 格式转换器
 """
-import os
 import re
-import sys
 from datetime import datetime
 from pathlib import Path
+
+from utils.runtime_capabilities import configure_windows_gtk_runtime, get_runtime_capabilities
 
 def convert_markdown_to_html(markdown_text: str) -> str:
     """将Markdown转换为HTML（增强版）"""
@@ -249,49 +249,20 @@ def convert_markdown_to_html(markdown_text: str) -> str:
     
     return styled_html
 
-
-def _configure_windows_gtk_runtime() -> None:
-    """Prepare GTK runtime search path for WeasyPrint on Windows."""
-    if sys.platform != "win32":
-        return
-
-    candidates = []
-    custom_bin = os.environ.get("GTK_RUNTIME_BIN")
-    if custom_bin:
-        candidates.append(Path(custom_bin))
-
-    candidates.extend(
-        [
-            Path(r"C:\Program Files\GTK3-Runtime Win64\bin"),
-            Path(r"C:\Program Files\GTK3 Runtime Win64\bin"),
-            Path(r"C:\Program Files\GTK3-Runtime\bin"),
-            Path(r"C:\Program Files\GTK3 Runtime\bin"),
-            Path(r"C:\GTK3-Runtime Win64\bin"),
-        ]
-    )
-
-    for candidate in candidates:
-        if not candidate.exists():
-            continue
-
-        candidate_str = str(candidate)
-        current_path = os.environ.get("PATH", "")
-        if candidate_str not in current_path.split(os.pathsep):
-            os.environ["PATH"] = f"{candidate_str}{os.pathsep}{current_path}" if current_path else candidate_str
-
-        if hasattr(os, "add_dll_directory"):
-            try:
-                os.add_dll_directory(candidate_str)
-            except OSError:
-                pass
-
-        return
-
-
 def convert_markdown_to_pdf(markdown_text: str, filename: str, upload_folder: Path) -> str:
     """将Markdown转换为PDF"""
     try:
-        _configure_windows_gtk_runtime()
+        capabilities = get_runtime_capabilities()
+        pdf_feature = (capabilities.get("features") or {}).get("pdf_export", {})
+        if not isinstance(pdf_feature, dict) or "available" not in pdf_feature:
+            capabilities = get_runtime_capabilities(refresh=True)
+            pdf_feature = (capabilities.get("features") or {}).get("pdf_export", {})
+        if not pdf_feature.get("available"):
+            reason = pdf_feature.get("reason") or "环境未检测到 PDF 导出能力"
+            print(f"PDF转换不可用，环境能力检查未通过: {reason}")
+            return None
+
+        configure_windows_gtk_runtime()
         import markdown
         from weasyprint import HTML
         

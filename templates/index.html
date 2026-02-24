@@ -38,6 +38,13 @@
                 <div><small>白盒分析: 加载中...</small></div>
             </div>
         </div>
+        <div class="upload-hint" id="systemCapabilityText">系统能力: 加载中...</div>
+        <div class="capability-actions">
+            <button class="btn btn-small btn-secondary" id="systemCapabilityToggle" onclick="toggleSystemCapabilityPanel()" style="display:none;">
+                查看系统能力详情
+            </button>
+        </div>
+        <div class="system-capability-panel" id="systemCapabilityPanel" style="display:none;"></div>
         
         <div class="subtitle">
             支持单文件与整项目性能分析。请输入目标的绝对路径，系统会自动选择 API / 本地模型 / 本地降级分析策略。
@@ -146,7 +153,7 @@
                 <button class="btn" onclick="downloadReport('markdown')">
                     <i class="fas fa-file-alt"></i> 下载Markdown
                 </button>
-                <button class="btn btn-secondary" onclick="downloadReport('pdf')">
+                <button class="btn btn-secondary" id="downloadPdfBtn" onclick="downloadReport('pdf')">
                     <i class="fas fa-file-pdf"></i> 下载PDF
                 </button>
                 <button class="btn btn-info" onclick="copyToClipboard('html')">
@@ -263,14 +270,140 @@
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             loadDeepSeekConfig();
+            loadSystemCapabilities();
         });
+
+        function updateSystemCapabilityStatus(caps) {
+            const text = document.getElementById('systemCapabilityText');
+            const pdfBtn = document.getElementById('downloadPdfBtn');
+            const toggleBtn = document.getElementById('systemCapabilityToggle');
+            if (!caps) {
+                if (text) text.textContent = '系统能力: 获取失败';
+                if (toggleBtn) toggleBtn.style.display = 'none';
+                return;
+            }
+            const env = caps.environment || {};
+            const features = caps.features || {};
+            const pdf = features.pdf_export || {};
+            const perf = features.perf_collector || {};
+            const pyspy = features.pyspy_collector || {};
+
+            const pdfText = pdf.available ? '可用' : `不可用(${pdf.reason || '未知'})`;
+            const perfText = perf.available ? '可用' : '不可用';
+            const pyspyText = pyspy.available ? '可用' : '不可用';
+            if (text) {
+                text.textContent = `系统能力: ${env.platform || 'unknown'} | PDF: ${pdfText} | perf: ${perfText} | py-spy: ${pyspyText}`;
+            }
+            if (pdfBtn) {
+                pdfBtn.disabled = !pdf.available;
+                pdfBtn.title = pdf.available ? '下载PDF报告' : (pdf.reason || '当前环境不支持PDF导出');
+            }
+            if (toggleBtn) {
+                toggleBtn.style.display = 'inline-flex';
+            }
+            renderSystemCapabilityDetails(caps);
+        }
+
+        function escapeCapabilityHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renderKeyValueRows(obj) {
+            const entries = Object.entries(obj || {});
+            if (!entries.length) return '<tr><td colspan="2">无数据</td></tr>';
+            return entries
+                .map(([k, v]) => `<tr><td>${escapeCapabilityHtml(k)}</td><td>${escapeCapabilityHtml(v)}</td></tr>`)
+                .join('');
+        }
+
+        function renderFeatureRows(features) {
+            const entries = Object.entries(features || {});
+            if (!entries.length) return '<tr><td colspan="3">无数据</td></tr>';
+            return entries
+                .map(([name, info]) => {
+                    const available = !!(info && info.available);
+                    const reason = (info && info.reason) || '';
+                    return `<tr><td>${escapeCapabilityHtml(name)}</td><td>${available ? '可用' : '不可用'}</td><td>${escapeCapabilityHtml(reason)}</td></tr>`;
+                })
+                .join('');
+        }
+
+        function renderSystemCapabilityDetails(caps) {
+            const panel = document.getElementById('systemCapabilityPanel');
+            if (!panel) return;
+
+            const env = caps.environment || {};
+            const modules = caps.modules || {};
+            const commands = caps.commands || {};
+            const features = caps.features || {};
+
+            panel.innerHTML = `
+                <h4>系统能力详情</h4>
+                <div class="capability-grid">
+                    <div class="capability-card">
+                        <h5>环境</h5>
+                        <table>
+                            ${renderKeyValueRows(env)}
+                        </table>
+                    </div>
+                    <div class="capability-card">
+                        <h5>Python模块</h5>
+                        <table>
+                            ${renderKeyValueRows(modules)}
+                        </table>
+                    </div>
+                    <div class="capability-card">
+                        <h5>外部命令</h5>
+                        <table>
+                            ${renderKeyValueRows(commands)}
+                        </table>
+                    </div>
+                </div>
+                <div class="capability-card">
+                    <h5>功能可用性</h5>
+                    <table>
+                        <tr><th>功能</th><th>状态</th><th>原因</th></tr>
+                        ${renderFeatureRows(features)}
+                    </table>
+                </div>
+            `;
+        }
+
+        function toggleSystemCapabilityPanel() {
+            const panel = document.getElementById('systemCapabilityPanel');
+            const btn = document.getElementById('systemCapabilityToggle');
+            if (!panel || !btn) return;
+            const open = panel.style.display !== 'none';
+            panel.style.display = open ? 'none' : 'block';
+            btn.textContent = open ? '查看系统能力详情' : '收起系统能力详情';
+        }
+
+        async function loadSystemCapabilities() {
+            try {
+                const response = await fetch('/api/system/capabilities');
+                if (!response.ok) return;
+                const data = await response.json();
+                if (data.success) {
+                    window.systemCapabilities = data.capabilities || {};
+                    updateSystemCapabilityStatus(window.systemCapabilities);
+                }
+            } catch (error) {
+                console.error('加载系统能力失败:', error);
+            }
+        }
         
         // 更新DeepSeek状态显示
         function updateDeepSeekStatus(config) {
             const statusIndicator = document.getElementById('statusIndicator');
             const statusText = document.getElementById('deepseekStatusText');
             const optionsElement = document.getElementById('deepseekOptions');
-            const hasApi = !!(config && config.api_key && config.api_url && config.model);
+            const apiConfigured = !!(config && (config.api_key_configured || config.api_key));
+            const hasApi = !!(config && apiConfigured && config.api_url && config.model);
             const hasLocal = !!(config && config.use_local_model && config.local_api_url && config.local_model);
 
             if (hasApi || hasLocal) {
@@ -303,7 +436,14 @@
                 .then(data => {
                     if (data.success && data.config) {
                         const config = data.config;
-                        document.getElementById('apiKey').value = config.api_key || '';
+                        const apiKeyInput = document.getElementById('apiKey');
+                        const localApiKeyInput = document.getElementById('localApiKey');
+                        const hasApiKey = !!(config.api_key_configured || config.api_key);
+                        const hasLocalApiKey = !!(config.local_api_key_configured || config.local_api_key);
+                        apiKeyInput.value = '';
+                        apiKeyInput.placeholder = hasApiKey
+                            ? `已保存（${config.api_key_masked || '******'}），留空则保持不变`
+                            : '输入您的DeepSeek API密钥';
                         document.getElementById('apiUrl').value = config.api_url || 'https://api.deepseek.com/v1/chat/completions';
                         document.getElementById('model').value = config.model || 'deepseek-chat';
                         document.getElementById('outputLanguage').value = config.output_language || 'zh';
@@ -313,7 +453,10 @@
                         document.getElementById('useLocalModel').checked = !!config.use_local_model;
                         document.getElementById('localApiUrl').value = config.local_api_url || 'http://127.0.0.1:11434/v1/chat/completions';
                         document.getElementById('localModelName').value = config.local_model || '';
-                        document.getElementById('localApiKey').value = config.local_api_key || '';
+                        localApiKeyInput.value = '';
+                        localApiKeyInput.placeholder = hasLocalApiKey
+                            ? `已保存（${config.local_api_key_masked || '******'}），留空则保持不变`
+                            : '如本地服务需要可填写';
                         document.getElementById('temperatureValue').textContent = 
                             (config.temperature || 0.3) + ' (0=确定性高, 1=创造性高)';
                     }
@@ -373,8 +516,7 @@
                 
                 const data = await response.json();
                 if (data.success) {
-                    window.deepseekConfig = config;
-                    updateDeepSeekStatus(config);
+                    await loadDeepSeekConfig();
                     showNotification('DeepSeek配置保存成功！', 'success');
                     closeDeepSeekConfig();
                 } else {
@@ -410,8 +552,10 @@
             const useLocal = document.getElementById('useLocalModel').checked;
             const localApiUrl = document.getElementById('localApiUrl').value.trim();
             const localModelName = document.getElementById('localModelName').value.trim();
+            const cfg = window.deepseekConfig || {};
+            const apiConfigured = !!(cfg.api_key_configured || cfg.api_key);
 
-            if (!apiKey && !(useLocal && localApiUrl && localModelName)) {
+            if (!apiKey && !apiConfigured && !(useLocal && localApiUrl && localModelName)) {
                 showNotification('请填写 API Key，或启用并配置本地模型', 'warning');
                 return;
             }

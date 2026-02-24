@@ -84,6 +84,25 @@ python web.py
 - `output_language`: `zh` 或 `en`
 - `enable_blackbox`, `enable_whitebox`
 
+说明：
+
+- `GET /api/deepseek/config` 返回脱敏后的密钥信息（如 `api_key_masked`）和是否已配置标记（如 `api_key_configured`），不会返回明文密钥。
+- 保存配置时若 `api_key`/`local_api_key` 留空，会保留已存密钥，不会被误清空。
+
+## 运行环境能力自动探测
+
+AutoProfiler 会自动探测当前系统能力，并按能力启用/降级功能：
+
+- Python 运行时执行改为 `sys.executable`，不再硬编码 `python`。
+- 若 `psutil` 不可用，运行时分析会跳过 psutil 采样，仍尝试 cProfile。
+- PDF 导出前会检查 `markdown`、`weasyprint` 及运行库是否可用。
+- 前端会展示系统能力摘要，PDF 不可用时自动禁用下载按钮。
+
+能力查询接口：
+
+- `GET /api/system/capabilities`
+- 强制刷新：`GET /api/system/capabilities?refresh=1`
+
 ## Web 使用流程
 
 1. 打开页面。
@@ -155,6 +174,8 @@ GET /api/proj-analyser/analysis/<analysis_id>
 - `.autoprofiler_proj_analyser/api_dialogue.json`
 - `.autoprofiler_proj_analyser/analysis_context.json`
 - `.autoprofiler_proj_analyser/focus_plan.json`
+
+其中 `api_dialogue.json` 现在包含每轮及汇总 token 用量（`token_usage_rounds`、`token_usage_summary`），API 模式报告会追加“API Token 用量”章节。
 
 文档镜像输出：
 

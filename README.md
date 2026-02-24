@@ -84,6 +84,25 @@ Important fields:
 - `output_language`: `zh` or `en`
 - `enable_blackbox`, `enable_whitebox`
 
+Notes:
+
+- `GET /api/deepseek/config` returns masked key fields (`api_key_masked`) and configuration flags (`api_key_configured`), not raw secrets.
+- When saving config, leaving `api_key`/`local_api_key` empty keeps existing stored values.
+
+## Runtime Capability Auto-Detection
+
+AutoProfiler now checks host capabilities and enables/degrades features automatically:
+
+- Python runtime execution uses `sys.executable` (no hard-coded `python` binary).
+- If `psutil` is unavailable, runtime profiling skips psutil sampling and still tries cProfile.
+- PDF export checks `markdown` + `weasyprint` + runtime libraries before conversion.
+- Frontend shows system capability summary and disables PDF download button when unsupported.
+
+Capability endpoint:
+
+- `GET /api/system/capabilities`
+- Optional refresh: `GET /api/system/capabilities?refresh=1`
+
 ## Web Workflow
 
 1. Open the UI.
@@ -155,6 +174,8 @@ Project outputs:
 - `.autoprofiler_proj_analyser/api_dialogue.json`
 - `.autoprofiler_proj_analyser/analysis_context.json`
 - `.autoprofiler_proj_analyser/focus_plan.json`
+
+`api_dialogue.json` includes per-round and aggregated API token usage (`token_usage_rounds`, `token_usage_summary`), and the report appends an `API Token Usage` section in API mode.
 
 Mirrored review copies:
 

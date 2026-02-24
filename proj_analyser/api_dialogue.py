@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -98,6 +98,29 @@ def _extract_chat_content(payload: Dict) -> str:
     return ""
 
 
+def _safe_int(value: Any) -> int:
+    try:
+        return max(0, int(value))
+    except Exception:
+        return 0
+
+
+def _normalize_usage(usage: Optional[Dict]) -> Dict[str, int]:
+    data = usage or {}
+    prompt_tokens = _safe_int(data.get("prompt_tokens", data.get("input_tokens", 0)))
+    completion_tokens = _safe_int(
+        data.get("completion_tokens", data.get("output_tokens", data.get("reasoning_tokens", 0)))
+    )
+    total_tokens = _safe_int(data.get("total_tokens", prompt_tokens + completion_tokens))
+    if total_tokens == 0 and (prompt_tokens > 0 or completion_tokens > 0):
+        total_tokens = prompt_tokens + completion_tokens
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+    }
+
+
 def _resolve_chat_endpoint(api_url: str) -> str:
     base = (api_url or "").strip().rstrip("/")
     if not base:
@@ -114,11 +137,21 @@ def call_chat_api_openai_compatible(
     messages: List[Dict],
     temperature: float,
     max_output_tokens: int,
-) -> str:
+) -> Dict[str, Any]:
     output_language = _resolve_output_language(runtime_config)
+
+    def _build_usage_for_content(content: str) -> Dict[str, int]:
+        prompt_tokens = max(1, len(json.dumps(messages, ensure_ascii=False)) // 4)
+        completion_tokens = max(1, len(content) // 4)
+        return {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+        }
+
     if os.environ.get("PROJ_ANALYSER_FAKE_CHAT") == "1":
         if len(messages) <= 2:
-            return json.dumps(
+            content = json.dumps(
                 {
                     "action": "need_files",
                     "reason": "Need entrypoint and one service file first",
@@ -129,6 +162,7 @@ def call_chat_api_openai_compatible(
                 },
                 ensure_ascii=False,
             )
+            return {"content": content, "usage": _build_usage_for_content(content)}
         fake_report = (
             "## 项目性能分析报告\n\n"
             "- 已完成 Fake 模式增量分析。\n"
@@ -140,7 +174,7 @@ def call_chat_api_openai_compatible(
                 "- Fake mode incremental analysis completed.\n"
                 "- Remove `PROJ_ANALYSER_FAKE_CHAT=1` and configure a real API key for actual results.\n"
             )
-        return json.dumps(
+        content = json.dumps(
             {
                 "action": "final_report",
                 "title": "Project Performance Report",
@@ -148,6 +182,7 @@ def call_chat_api_openai_compatible(
             },
             ensure_ascii=False,
         )
+        return {"content": content, "usage": _build_usage_for_content(content)}
 
     endpoint = _resolve_chat_endpoint(
         runtime_config.get("api_url", "https://api.deepseek.com/v1/chat/completions")
@@ -182,7 +217,10 @@ def call_chat_api_openai_compatible(
     content = _extract_chat_content(payload).strip()
     if not content:
         raise RuntimeError("api_empty_content")
-    return content
+    return {
+        "content": content,
+        "usage": _normalize_usage(payload.get("usage") if isinstance(payload, dict) else None),
+    }
 
 
 def _sanitize_requested_path(requested: str) -> str:
@@ -371,16 +409,38 @@ def run_api_dialogue(
     ]
 
     logs = []
+    token_usage_summary = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "rounds_with_usage": 0,
+    }
+    token_usage_rounds = []
     invalid_json_turns = 0
     final_report = None
 
     for round_id in range(1, max_rounds + 1):
-        raw = call_chat_api_openai_compatible(
+        raw_response = call_chat_api_openai_compatible(
             runtime_config=runtime_config,
             messages=messages,
             temperature=temperature,
             max_output_tokens=max_output_tokens,
         )
+        if isinstance(raw_response, dict):
+            raw = str(raw_response.get("content", ""))
+            usage = _normalize_usage(raw_response.get("usage"))
+        else:
+            # Backward compatibility for tests/mocks still returning plain content.
+            raw = str(raw_response or "")
+            usage = _normalize_usage(None)
+
+        if usage["total_tokens"] > 0:
+            token_usage_summary["prompt_tokens"] += usage["prompt_tokens"]
+            token_usage_summary["completion_tokens"] += usage["completion_tokens"]
+            token_usage_summary["total_tokens"] += usage["total_tokens"]
+            token_usage_summary["rounds_with_usage"] += 1
+        token_usage_rounds.append({"round": round_id, **usage})
+
         action = extract_loose_json_object(raw)
         if not action:
             invalid_json_turns += 1
@@ -389,6 +449,7 @@ def run_api_dialogue(
                     "round": round_id,
                     "assistant_action": "invalid_json",
                     "raw_preview": raw[:320],
+                    "usage": usage,
                 }
             )
             messages.append({"role": "assistant", "content": raw})
@@ -412,6 +473,7 @@ def run_api_dialogue(
                         "round": round_id,
                         "assistant_action": "invalid_final_report",
                         "reason": "missing report_markdown",
+                        "usage": usage,
                     }
                 )
                 messages.append({"role": "assistant", "content": raw})
@@ -430,6 +492,7 @@ def run_api_dialogue(
                     "round": round_id,
                     "assistant_action": "final_report",
                     "title": action.get("title", "Project Performance Report"),
+                    "usage": usage,
                 }
             )
             break
@@ -475,6 +538,7 @@ def run_api_dialogue(
                 "provided_count": len(snippets),
                 "provided_paths": [s.get("path") for s in snippets if s.get("path")],
                 "sent_chars": sent_chars,
+                "usage": usage,
             }
         )
         messages.append({"role": "assistant", "content": raw})
@@ -503,4 +567,6 @@ def run_api_dialogue(
         "report_markdown": final_report,
         "rounds": len(logs),
         "logs": logs,
+        "token_usage_summary": token_usage_summary,
+        "token_usage_rounds": token_usage_rounds,
     }

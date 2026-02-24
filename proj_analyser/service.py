@@ -255,6 +255,38 @@ def _render_ai_status_section(analysis_mode: str, runtime_mode: str, rounds: int
     )
 
 
+def _render_token_usage_section(token_usage_summary: Dict, output_language: str) -> str:
+    usage = token_usage_summary or {}
+    prompt_tokens = int(usage.get("prompt_tokens", 0) or 0)
+    completion_tokens = int(usage.get("completion_tokens", 0) or 0)
+    total_tokens = int(usage.get("total_tokens", 0) or 0)
+    rounds_with_usage = int(usage.get("rounds_with_usage", 0) or 0)
+    lang = str(output_language or "zh").lower()
+
+    if lang.startswith("en"):
+        lines = [
+            "## API Token Usage",
+            f"- Prompt tokens: {prompt_tokens}",
+            f"- Completion tokens: {completion_tokens}",
+            f"- Total tokens: {total_tokens}",
+            f"- Rounds with usage stats: {rounds_with_usage}",
+        ]
+        if total_tokens <= 0:
+            lines.append("- Note: provider did not return usage metrics for this run.")
+        return "\n".join(lines)
+
+    lines = [
+        "## API Token 用量",
+        f"- Prompt tokens: {prompt_tokens}",
+        f"- Completion tokens: {completion_tokens}",
+        f"- Total tokens: {total_tokens}",
+        f"- 返回用量数据的轮次: {rounds_with_usage}",
+    ]
+    if total_tokens <= 0:
+        lines.append("- 说明: 本次调用的服务端未返回 usage 统计。")
+    return "\n".join(lines)
+
+
 def _merge_report_sections(
     base_report: str,
     scan_result: Dict,
@@ -262,6 +294,8 @@ def _merge_report_sections(
     analysis_mode: str,
     runtime_mode: str,
     rounds: int,
+    token_usage_summary: Dict,
+    output_language: str,
 ) -> str:
     report = (base_report or "").strip()
     if not report:
@@ -276,6 +310,10 @@ def _merge_report_sections(
         parts.append(_render_project_structure_section(scan_result, focus_plan))
     if "## AI分析状态" not in report and "## AI Analysis Status" not in report:
         parts.append(_render_ai_status_section(analysis_mode, runtime_mode, rounds))
+    if analysis_mode.startswith("project_api") and (
+        "## API Token Usage" not in report and "## API Token 用量" not in report
+    ):
+        parts.append(_render_token_usage_section(token_usage_summary, output_language))
     return "\n\n---\n\n".join(parts)
 
 
@@ -362,6 +400,8 @@ def analyze_project_with_api(
         analysis_mode=analysis_mode,
         runtime_mode=runtime.get("mode", "none"),
         rounds=int(dialogue.get("rounds", 0)),
+        token_usage_summary=dialogue.get("token_usage_summary", {}),
+        output_language=runtime.get("output_language", "zh"),
     )
     report_html = convert_markdown_to_html(report_markdown)
 
@@ -379,6 +419,8 @@ def analyze_project_with_api(
                 "generated_at": datetime.now().isoformat(),
                 "rounds": dialogue.get("rounds", 0),
                 "logs": dialogue.get("logs", []),
+                "token_usage_summary": dialogue.get("token_usage_summary", {}),
+                "token_usage_rounds": dialogue.get("token_usage_rounds", []),
             },
             ensure_ascii=False,
             indent=2,
@@ -457,4 +499,5 @@ def analyze_project_with_api(
         "entrypoints_primary": scan_result.get("entrypoints_primary", []),
         "entrypoints_top": scan_result.get("entrypoints_top", []),
         "rounds": dialogue.get("rounds", 0),
+        "token_usage_summary": dialogue.get("token_usage_summary", {}),
     }
