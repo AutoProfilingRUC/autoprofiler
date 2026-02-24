@@ -1,107 +1,43 @@
-# AutoProfiler (Python-based Automatic Profiling Tool)
+# AutoProfiler
 
-## 1. Project Overview
+AutoProfiler is a local performance analysis tool with a Web UI and HTTP APIs.
 
-AutoProfiler is an **automatic performance profiling and diagnosis tool** implemented in **Python**.
+It supports:
 
-The core goal of this project is:
+- Single-file analysis.
+- Project-level analysis (`proj-analyser`) for medium/large repositories.
+- AI-assisted reporting (remote API or local OpenAI-compatible model).
 
-> Given an **unknown target program** (usually Python, but not limited by project structure),
-> automatically collect performance data, analyze performance patterns,
-> and generate **evidence-based performance diagnostics and optimization suggestions**.
+`docs/` is the source of truth for maintained docs:
 
-This project **does NOT assume**:
+- `docs/README.md`
+- `docs/reference/`
+- `docs/changelog.md`
+- `docs/archive/`
 
-- prior knowledge of the target program  
-- access to or modification of the target program’s source code  
-- specific frameworks, coding styles, or workloads  
+## What It Can Analyze
 
-AutoProfiler is designed as a **black-box / semi-black-box profiler**, similar in philosophy to tools like `perf`, `py-spy`, or `valgrind`, but specialized for **Python ecosystems** and **AI-assisted explanation**.
+Single-file mode has two execution paths:
 
-Project docs are consolidated under `docs/`:
+1. Python runtime profiling (`.py`, `.pyw`).
+2. Static multi-language analysis (other supported source extensions).
 
-* `docs/README.md`: documentation index
-* `docs/reference/`: current reference docs
-* `docs/changelog.md`: change history
-* `docs/archive/`: historical design docs kept for context
-* `docs/generated/`: runtime-generated reports (git-ignored by default)
+Project mode (`proj-analyser`) scans repository structure, builds a focus plan, and runs incremental API dialogue (`need_files` / `final_report`) to keep token usage bounded.
 
----
+## Supported Single-File Extensions
 
-## 2. Non-Goals (Very Important)
+`.py .pyw .js .jsx .ts .tsx .java .kt .go .rs .c .h .cpp .cc .hpp .cs .php .rb .swift .scala .sql .yml .yaml .toml .json .md`
 
-To avoid ambiguity, AutoProfiler explicitly does **NOT** aim to:
+Note:
 
-- ❌ Fully understand business logic of the target program  
-- ❌ Automatically rewrite or refactor code by default  
-- ❌ Guarantee performance improvement after suggestions  
-- ❌ Depend on decorators, instrumentation, or source modification  
-- ❌ Be a full IDE or debugger  
+- Runtime profiling is available only for Python files.
+- Other languages use static structure/performance-signal analysis.
 
-Instead, the project focuses on a pipeline of **profiling facts → diagnosis → verifiable guidance**.
+## Quick Start
 
----
+### 1) Setup environment
 
-## 3. High-Level Architecture
-
-AutoProfiler follows a **three-stage pipeline**:
-
-```text
-[ Runner ]
-    ↓
-[ Collectors ]  → raw profiling artifacts
-    ↓
-[ Analyzers ]   → structured findings (pattern-based)
-    ↓
-[ Reporter ]    → human-readable diagnosis & suggestions
-```
-
-Each stage is **strictly decoupled** and communicates through well-defined data structures.
-
----
-
-## 4. Target Program Model (Critical Assumption)
-
-The target program is treated as an **opaque executable command**:
-
-```text
-TargetProgram = {
-    command: ["python", "main.py", "--arg1", "value"],
-    cwd: "/path/to/workdir",
-    env: { ... },
-    timeout: optional
-}
-```
-
-Key implications:
-
-* The profiler **launches and observes**, but does not interfere.
-* The program may be:
-
-  * a script
-  * a module (`python -m xxx`)
-  * a test suite
-  * a service (short-lived or long-running)
-* The profiler must work **without knowing program internals**.
-
----
-
-## 5. Installation & Environment Setup
-
-### Requirements
-
-* Python ≥ 3.10
-* Linux / WSL recommended (for `py-spy` and future eBPF-based features)
-
-### Option A: One-step bootstrap (recommended)
-
-```bash
-python -m venv .venv
-python3 tools/bootstrap.py
-source .venv/bin/activate
-```
-
-Windows equivalent:
+Windows:
 
 ```powershell
 python -m venv .venv
@@ -109,548 +45,83 @@ python tools/bootstrap.py
 .\.venv\Scripts\activate
 ```
 
-This will:
-
-* Create a virtual environment
-* Install all dependencies from `requirements.txt`
-
-### Option B: Manual setup
-
-Create an isolated environment:
+Linux/macOS:
 
 ```bash
 python -m venv .venv
+python tools/bootstrap.py
 source .venv/bin/activate
-python -m pip install --upgrade pip
 ```
 
-Windows equivalent:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\activate
-python -m pip install --upgrade pip
-```
-
-Install runtime dependencies:
-
-Core runtime libraries:
-
-* [`psutil`](https://pypi.org/project/psutil/) — used by `PsutilCollector` for CPU and memory sampling
-* [`PyYAML`](https://pypi.org/project/PyYAML/) — used to load declarative performance patterns
+### 2) Start Web server
 
 ```bash
-python -m pip install psutil pyyaml
+python web.py
 ```
 
-Optional / future collectors may require additional dependencies (e.g. `py-spy`). Check the corresponding collector module docstring for details.
+Default URL:
 
-Web UI dependencies (if you run `web_app.py`):
+- `http://127.0.0.1:5000`
 
-* [`Flask`](https://pypi.org/project/Flask/)
-* [`flask-cors`](https://pypi.org/project/flask-cors/)
+## Model Configuration
 
-To validate the installation, run a lightweight import and bytecode compilation check:
+Config endpoint:
 
-```bash
-python -m compileall autoprofiler
-```
+- `GET /api/deepseek/config`
+- `POST /api/deepseek/config`
+- `POST /api/deepseek/test`
+- `POST /api/deepseek/clear`
 
----
+Runtime config file:
 
-## 6. Minimal Reference Implementation (for contributors)
+- `uploads/deepseek_config.json` (local runtime file, git-ignored)
+- `uploads/deepseek_config.example.json` (tracked template)
 
-The repository includes a lightweight Python package scaffold (`autoprofiler/`) that follows the design rules above:
+Important fields:
 
-* `autoprofiler.models` defines the immutable schemas (`TargetProgram`, `ProfileArtifact`, `Finding`, etc.)
-* `autoprofiler.runner.Runner` launches opaque commands, captures stdout/stderr, and invokes collectors without modifying the target program
-* `autoprofiler.collectors.psutil_collector.PsutilCollector` observes CPU and memory usage for an existing PID using periodic sampling (no instrumentation)
-* `autoprofiler.patterns.loader` reads declarative YAML pattern definitions (see `autoprofiler/patterns/performance.yaml`)
-* `autoprofiler.analyzers.simple_analyzer.PatternMatchingAnalyzer` deterministically matches collector metrics against pattern thresholds to emit structured findings
-* `autoprofiler.reporting.reporter` renders `report.md`-style text and `findings.json` payloads from a profiling session
+- `api_key`, `api_url`, `model`
+- `use_local_model`, `local_api_url`, `local_model`, `local_api_key`
+- `output_language`: `zh` or `en`
+- `enable_blackbox`, `enable_whitebox`
 
-### Python quickstart
+## Web Workflow
 
-```python
-from pathlib import Path
+1. Open the UI.
+2. Choose `single file` or `project`.
+3. Input an absolute path.
+4. Configure model (optional).
+5. Start analysis.
 
-from autoprofiler.runner import Runner
-from autoprofiler.models import TargetProgram
-from autoprofiler.collectors.psutil_collector import PsutilCollector
-from autoprofiler.patterns.loader import load_patterns
-from autoprofiler.analyzers.simple_analyzer import PatternMatchingAnalyzer
-from autoprofiler.reporting.reporter import render_findings_json, render_markdown
+Behavior:
 
+- If model config is missing, project mode can continue with local fallback analysis.
+- AI output language follows `output_language`.
 
-target = TargetProgram(command=["python", "-c", "print('hello')"], timeout=5)
-collector = PsutilCollector(sample_interval=0.25)
+## HTTP API
 
-# Run the target and collect artifacts
-session = Runner().run(target, collectors=[collector])
+### Single-file analysis
 
-# Load performance patterns and run analysis
-patterns = load_patterns(Path("autoprofiler/patterns/performance.yaml"))
-analyzer = PatternMatchingAnalyzer(patterns)
-session.findings = analyzer.analyze(session.artifacts)
+Start:
 
-# Render human-readable and machine-readable reports
-print(render_markdown(session))
-print(render_findings_json(session))
-```
+```http
+POST /api/analyze-file-path
+Content-Type: application/json
 
-This quickstart keeps the **black-box profiling** philosophy intact: it launches the target command, observes metrics externally, matches them against declarative patterns, and produces reproducible reports.
-
-### Demo workload
-
-For a simple CPU-heavy demo workload that exercises the pipeline end-to-end:
-
-```bash
-python -m autoprofiler.demo_profile
-```
-
-This combines psutil sampling with a cProfile-based collector (if available), loads patterns from `autoprofiler/patterns/performance.yaml`, and prints both markdown and JSON findings.
-
-### Root Cause + Fix: Empty cProfile Stats with High CPU
-
-When the target workload spends CPU in child processes (e.g., multiprocessing, subprocesses, or native extensions), the parent process wrapped by `python -m cProfile` can emit empty or misleading stats. AutoProfiler now detects this condition, reports explicit warnings, and avoids incorrect "few calls => native code" inferences when cProfile reports empty stats. The psutil process collector can also surface child-heavy CPU usage so you can decide to aggregate metrics or profile children with sampling tools. Use `--include-children` to aggregate process-tree CPU in system metrics.
-
-#### Example validation commands
-
-```bash
-# Single-process CPU workload (cProfile should show non-empty stats)
-autoprofiler run --collect psutil,cprofile -- \\
-  python tests/fixtures/cprofile_workload.py --mode single --duration 1.5
-
-# Multi-process workload (child CPU should be detected; cProfile may be empty/misleading)
-autoprofiler run --collect psutil,cprofile --include-children -- \\
-  python tests/fixtures/cprofile_workload.py --mode multi --duration 1.5
-```
-
-### Run AutoProfiler via the template test
-
-You can also launch the profiling pipeline directly from the terminal using the template test in `tests/test_autoprofiler_template.py`.
-
-Run the default inline program:
-
-```bash
-python -m unittest tests.test_autoprofiler_template
-```
-
-Point the profiler at your own program (any executable command works):
-
-```bash
-AUTOPROFILER_TARGET="python my_script.py --flag" \
-  python -m unittest tests.test_autoprofiler_template
-```
-
----
-
-## 7. CLI-first process profiling (Linux MVP)
-
-AutoProfiler now supports profiling **arbitrary Linux executables** and attaching to
-**running processes** from the command line. Existing Python collectors (cProfile/py-spy)
-are still available and can be requested explicitly.
-
-### Run mode
-
-```bash
-# Run an executable and profile until it exits
-python -m autoprofiler run -- ./my_binary --flag value
-
-# Profile for a fixed window (in seconds)
-python -m autoprofiler run --duration 10 -- ./my_binary --flag value
-
-# Set working directory + environment variables for the target process
-python -m autoprofiler run --cwd /tmp --env FOO=bar --env PATH=/opt/bin:$PATH -- ./my_binary
-```
-
-### Attach mode
-
-```bash
-# Attach to a running PID for 30s (default)
-python -m autoprofiler attach --pid 12345
-
-# Attach to process name (collects all matching PIDs)
-python -m autoprofiler attach --name myservice --duration 20
-
-# Include the entire process tree (child processes) in aggregation
-python -m autoprofiler attach --pid 12345 --include-children --duration 20
-```
-
-### Collector selection
-
-```bash
-# Choose collectors explicitly
-python -m autoprofiler run --collect psutil,perf -- ./my_binary
-python -m autoprofiler run --collect psutil,pyspy -- python my_script.py
-```
-
-Defaults:
-
-* Linux: `psutil + perf` (perf is best-effort; it disables itself when unavailable)
-* Other platforms: `psutil` only
-
-### Output artifacts
-
-Every CLI run produces:
-
-* `profile_report.json` (machine-readable, JSON)
-* terminal summary (human-readable)
-* optional artifacts (e.g., `perf_*.data`, `pyspy_*.svg`)
-
-Example JSON snippet:
-
-```json
 {
-  "schema_version": "1.0",
-  "metadata": {
-    "mode": "run",
-    "command": ["./my_binary", "--flag", "value"],
-    "pids": [4242],
-    "platform": "linux"
-  },
-  "timeseries": [
-    {"t": 0.0, "cpu_percent": 12.5, "rss_bytes": 10485760.0}
-  ],
-  "summary": {
-    "cpu_percent": {"min": 8.0, "max": 110.0, "p50": 45.0, "p95": 98.0}
-  },
-  "diagnosis": [
-    {"label": "cpu_bound", "confidence": 0.7, "evidence": {"cpu_avg": 91.2}}
-  ],
-  "warnings": []
+  "file_path": "E:/repo/src/service/handler.ts",
+  "output_language": "en"
 }
 ```
 
-### Perf permissions (Linux)
+Poll:
 
-`perf` may require relaxed kernel settings or elevated privileges. Common fixes:
-
-```bash
-sudo sysctl -w kernel.perf_event_paranoid=1
-sudo sysctl -w kernel.kptr_restrict=0
+```http
+GET /api/analysis/<analysis_id>
 ```
 
-If you see `perf` permission errors, AutoProfiler will continue and emit a warning in
-`profile_report.json` with troubleshooting hints.
+### Project analysis (`proj-analyser`)
 
-### Windows notes (design-ready, partial support)
-
-* `--cwd` and `--env` work for running Windows executables.
-* `psutil` data collection works best-effort on Windows.
-* PDF export via `weasyprint` needs GTK runtime (`libgobject-2.0-0.dll`).
-  If import fails, install GTK runtime and ensure
-  `C:\Program Files\GTK3-Runtime Win64\bin` is available in `PATH`
-  (or set `GTK_RUNTIME_BIN` to that `bin` directory).
-* ETW profiling is **not** implemented in the MVP; see `EtwCollector` placeholder.
-
-The template test prints the generated markdown report to stdout so you can quickly inspect findings without wiring up additional code.
-
----
-
-## 7. Runner Responsibilities
-
-The `Runner` module is responsible for:
-
-* Launching the target program via `subprocess`
-* Capturing:
-
-  * PID(s)
-  * stdout / stderr
-  * exit status
-  * runtime duration
-* Enforcing:
-
-  * time limits
-  * environment isolation (best-effort)
-* Providing a **stable execution context** for collectors
-
-The Runner **must not**:
-
-* parse or interpret program output
-* inject code into the target
-* depend on language-specific internals
-
----
-
-## 8. Collectors: Data Acquisition Layer
-
-Collectors are **pluggable, independent modules** that observe the running process.
-
-Each collector:
-
-* Attaches to the target PID (or wraps execution)
-* Produces a `ProfileArtifact`
-* Must be safe for unknown programs
-
-### Available collectors
-
-* **PsutilCollector** (implemented)
-
-  * System-level metrics: CPU usage, RSS memory, I/O activity, thread count
-  * Periodic sampling without instrumentation
-
-* **CProfileCollector** (implemented)
-
-  * Uses `python -m cProfile`
-  * Collects call counts and cumulative time
-  * Wraps the target command via `prepare_command()` method
-  * Produces `.pstats` files for detailed analysis
-
-* **PySpyCollector** (implemented)
-
-  * Sampling-based CPU profiler
-  * Low overhead, no source modification
-  * Gracefully degrades with a warning when the `py-spy` binary is unavailable
-  * Can generate flamegraph outputs
-
-Collectors should **never interpret results** — only collect and serialize.
-
----
-
-## 9. Artifacts and Data Format
-
-All collectors output standardized artifacts.
-
-```python
-ProfileArtifact = {
-    "collector": "py-spy",
-    "type": "cpu-sampling",
-    "timestamp": "...",
-    "raw_files": [...],
-    "metrics": {...},
-}
-```
-
-Artifacts must be:
-
-* Serializable (JSON-compatible)
-* Persisted to disk
-* Reusable for offline analysis
-
----
-
-## 10. Analyzers: Pattern-Based Diagnosis
-
-Analyzers consume artifacts and generate **Findings**.
-
-### Key design principle
-
-> Analyzers do not understand business logic.
-> They understand **performance patterns**.
-
-Examples:
-
-* High call count of small functions
-* CPU-bound vs IO-bound behavior
-* Excessive memory growth
-* Hot call paths dominating runtime
-* Abnormal variance across runs
-
-### Finding structure
-
-```python
-Finding = {
-    "id": "high_call_count_small_fn",
-    "location": "file.py:function:line",
-    "evidence": {
-        "call_count": 1_200_000,
-        "avg_time_us": 1.2,
-        "total_time_s": 1.44,
-    },
-    "confidence": 0.82,
-    "pattern_id": "high_call_count_small_fn",
-    "suggestions": [...],
-}
-```
-
-All findings must:
-
-* Be backed by quantitative evidence
-* Be explainable without code context
-* Be reproducible
-
-See the next section for the canonical pattern list.
-
----
-
-## 11. LLM Integration Philosophy
-
-LLMs (Codex / GPT) are used for **explanation and synthesis**, NOT raw inference.
-
-LLMs are provided with:
-
-* Structured Findings
-* Performance patterns
-* Selected code snippets (optional)
-* Explicit instructions to:
-
-  * cite evidence
-  * avoid speculation
-  * state uncertainty
-
-LLMs must NOT:
-
-* Guess missing data
-* Claim guaranteed optimizations
-* Modify code unless explicitly enabled
-* Replace analyzers or pattern logic
-
----
-
-## 12. Performance Pattern Knowledge Base
-
-Performance knowledge is encoded as **explicit patterns**, not hardcoded logic.
-
-Patterns are stored in a declarative format (e.g. YAML):
-
-```yaml
-- id: high_call_count_small_fn
-  description: >
-    Excessive invocation of very small functions causes
-    interpreter dispatch overhead.
-  condition:
-    call_count: "> 1e6"
-    avg_time_us: "< 2"
-  suggestions:
-    - Inline function logic
-    - Batch operations
-```
-
-This enables:
-
-* Explainability
-* Extensibility
-* LLM-friendly reasoning
-
-### Available performance patterns
-
-Patterns are organized by category (see `autoprofiler/patterns/performance.yaml`):
-
-#### CPU-related patterns
-
-* `high_cpu_usage`: Sustained high CPU consumption (> 75%)
-* `low_cpu_high_io`: Low CPU usage suggesting IO-bound workload (< 20%)
-* `cpu_variance_high`: High CPU variance indicating inconsistent workload
-
-#### Function call patterns (cProfile-based)
-
-* `high_call_count_small_fn`: Excessive small function invocations (> 1M calls, < 5s total)
-* `single_function_dominates`: One function consumes > 50% of execution time
-* `high_calls_low_time`: Many calls but low total time (overhead-dominated)
-
-#### Memory patterns
-
-* `memory_growth_risk`: RSS memory exceeds threshold (> 500MB)
-* `vms_rss_ratio_high`: High virtual-to-physical memory ratio (> 4.0, suggests fragmentation)
-* `memory_growth_trend`: Upward memory trend during execution (potential leak)
-
-#### Execution time patterns
-
-* `long_execution_time`: Execution exceeds expected duration (> 10s)
-
-#### Hot function patterns
-
-* `top_functions_concentration`: Top functions consume > 70% of time
-* `hot_function_high_call_count`: Hot function has unusually high call count (> 100K)
-
-#### Sampling patterns
-
-* `insufficient_sampling`: Too few samples collected (< 5 samples)
-
-#### Combined patterns (multi-artifact)
-
-* `cpu_intensive_few_calls`: High CPU (> 70%) with few calls (< 10K) — suggests tight loops
-* `memory_intensive_low_cpu`: High memory (> 1GB) with low CPU (< 30%) — suggests data-heavy processing
-
-Patterns can be extended without modifying code.
-
----
-
-## 13. Output and Reports
-
-Primary output formats:
-
-* `report.md` (human-readable)
-* `findings.json` (machine-readable)
-* raw profiling artifacts (for reproducibility)
-
-Reports include:
-
-* Summary of observed behavior
-* Key bottlenecks
-* Evidence-backed explanations
-* Suggested actions
-* How to verify improvements
-
----
-
-## 14. Design Constraints (for code generation tools)
-
-When generating or modifying code (via AI or templates), always respect:
-
-* Modular architecture
-* Explicit data schemas
-* No hidden global state
-* No assumptions about target code
-* Prefer clarity over cleverness
-* Profiling correctness > micro-optimizations
-
----
-
-## 15. Expected Evolution & Open Tasks
-
-Planned future extensions (high-level):
-
-* Multi-run regression detection and trend analysis
-* Diff-based performance comparison between runs or branches
-* Enhanced memory profiling (e.g. `tracemalloc`, `memray`)
-* Cross-language support via eBPF and system-level collectors
-* Visualization (HTML views, flamegraph embedding)
-
-Concrete open tasks for contributors:
-
-* Extend `ProfileArtifact` schemas for richer metadata (e.g. per-thread stats)
-* Add more declarative patterns (cache behavior, GC activity, I/O patterns)
-* Build a simple CLI front-end (`autoprofiler` entry point) for running profiles without Python code changes
-* Add multi-run storage and comparison API
-* Create sample "bad" workloads with known bottlenecks for regression testing
-* Enhance LLM integration for more sophisticated report generation
-
----
-
-## 16. Testing
-
-The project includes several test files in the `tests/` directory:
-
-* `test_autoprofiler_template.py` - Basic template test for profiling any target program
-* `test_new_patterns.py` - Tests for new performance pattern detection
-* `test_extended.py` - Extended tests with longer-running workloads
-* `test_complete_demo.py` - Complete demonstration of all features
-* `test_proj_analyser_json.py` - JSON action parser tests for project API dialogue
-* `test_proj_analyser_focus.py` - Focus planning tests for project-level file selection
-
-Run tests using:
-
-```bash
-# Run all tests
-python -m unittest discover tests
-
-# Run specific test
-python -m unittest tests.test_autoprofiler_template
-
-# Run demo scripts directly
-python tests/test_extended.py
-```
-
----
-
-## 17. proj-analyser API (Project-Level, medium/large repos)
-
-AutoProfiler now includes a project-level API component named `proj-analyser`.
-It is designed for medium/large repositories where single-file analysis is not enough.
-
-Endpoint 1: start analysis
+Start:
 
 ```http
 POST /api/proj-analyser/analyze
@@ -667,53 +138,63 @@ Content-Type: application/json
 }
 ```
 
-Endpoint 2: poll status/result
+Poll:
 
 ```http
 GET /api/proj-analyser/analysis/<analysis_id>
 ```
 
-Output artifacts are written into:
+Project mode context sent to model includes repository summary, directory distribution, entrypoint candidates, and focus plan. Source code is sent incrementally by file/range requests.
 
-* `<repo>/.autoprofiler_proj_analyser/report_project_api.md`
-* `<repo>/.autoprofiler_proj_analyser/api_dialogue.json`
-* `<repo>/.autoprofiler_proj_analyser/analysis_context.json`
-* `<repo>/.autoprofiler_proj_analyser/focus_plan.json`
+## Output Artifacts
 
-Mirrored review copies are written into:
+Project outputs:
 
-* `<repo>/docs/generated/project/report_project_api.md`
-* `<repo>/docs/generated/project/report_project_api.html`
-* `<repo>/docs/generated/project/report_project_context.json`
-* `<repo>/docs/generated/project/report_project_focus.json`
+- `.autoprofiler_proj_analyser/report_project_api.md`
+- `.autoprofiler_proj_analyser/report_project_api.html`
+- `.autoprofiler_proj_analyser/api_dialogue.json`
+- `.autoprofiler_proj_analyser/analysis_context.json`
+- `.autoprofiler_proj_analyser/focus_plan.json`
 
-Notes:
+Mirrored review copies:
 
-* Uses the same DeepSeek config (`/api/deepseek/config`) by default
-* Supports local-model config via OpenAI-compatible endpoint
-* Supports language selection via `output_language` (`zh` / `en`) and applies it to API prompts/reports
-* Supports incremental model dialogue (`need_files` / `final_report`) to reduce token usage
-* Supports fake mode for offline smoke tests: `PROJ_ANALYSER_FAKE_CHAT=1`
-* If no API/local model is configured, it automatically falls back to local rule-based analysis (`fallback_local`)
+- `docs/generated/project/report_project_api.md`
+- `docs/generated/project/report_project_api.html`
+- `docs/generated/project/report_project_context.json`
+- `docs/generated/project/report_project_focus.json`
 
-Frontend flow (updated):
+Single-file outputs are returned in API result payload (`markdown`, `html`, optional `pdf_path`).
 
-* Choose `single file` or `project` mode on the web page
-* Input an absolute path
-* Single-file mode supports multi-language source files (`.py/.js/.ts/.java/.go/.rs/.cpp/.cs/...`)
-* Choose AI output language (`中文` / `English`) in DeepSeek settings
-* In project mode, if no API/local model exists, UI prompts for API key and saves config; user can skip and continue fallback mode
+## Testing
 
----
+Run focused tests:
 
-## 18. Guiding Philosophy
+```bash
+python -m unittest tests.test_code_analyzer_multilang
+python -m unittest tests.test_single_file_multilang_task
+python -m unittest tests.test_proj_analyser_scanner
+python -m unittest tests.test_proj_analyser_prompt_language
+```
 
-> AutoProfiler is not an optimizer.
-> It is an **automated performance analyst**.
+Run all tests:
 
-The system exists to:
+```bash
+python -m unittest discover tests
+```
 
-* Reduce human effort
-* Increase diagnostic accuracy
-* Improve explainability
-* Enable reproducible performance engineering
+## Troubleshooting
+
+`PDF export unavailable`:
+
+- Ensure dependencies are installed from `requirements.txt`.
+- On Windows, install GTK runtime for WeasyPrint.
+
+`Model calls fail`:
+
+- Verify API key and endpoint.
+- For local model, ensure OpenAI-compatible endpoint is reachable.
+
+`Project report is fallback-only`:
+
+- This means no usable model config was found or API call failed.
+- Check `/api/deepseek/test` and runtime config fields.
