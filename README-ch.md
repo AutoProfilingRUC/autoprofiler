@@ -146,6 +146,7 @@ AutoProfiler 会自动探测当前系统能力，并按能力启用/降级功能
 1. 打开页面。
 2. 选择 `单文件` 或 `整项目`。
 3. 输入绝对路径。
+   - 支持直接粘贴带引号路径，例如 `"E:\MY_WORK\CS\etrip-profiling\autoprofiler\tests\test_extended.py"`。
 4. 可选配置模型。
 5. 点击开始分析。
 

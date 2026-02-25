@@ -9,6 +9,7 @@ from flask import jsonify, request
 from models.deepseek_config import DeepSeekConfig
 from proj_analyser.manager import project_analysis_manager
 from proj_analyser.task import analyze_project_task
+from utils.path_input import normalize_user_path
 
 
 def _normalize_query_terms(raw_query):
@@ -26,7 +27,7 @@ def register_proj_analyser_routes(app):
     @app.route("/api/proj-analyser/analyze", methods=["POST"])
     def start_project_analysis():
         payload = request.get_json(silent=True) or {}
-        project_path = str(payload.get("project_path", "")).strip()
+        project_path = normalize_user_path(payload.get("project_path", ""))
         if not project_path:
             return jsonify({"success": False, "error": "project_path 不能为空"}), 400
 

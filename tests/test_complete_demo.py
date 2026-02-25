@@ -45,7 +45,7 @@ print(f"Final result: {result}")
     
     # 使用CProfileCollector包装命令
     cprofile_collector = CProfileCollector(top_n=5)
-    wrapped_command = cprofile_collector.prepare_command(["python", "-c", workload_code])
+    wrapped_command = cprofile_collector.prepare_command([sys.executable, "-c", workload_code])
     
     target = TargetProgram(
         command=wrapped_command,

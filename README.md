@@ -146,6 +146,7 @@ Capability endpoint:
 1. Open the UI.
 2. Choose `single file` or `project`.
 3. Input an absolute path.
+   - Quoted paths are accepted, e.g. `"E:\MY_WORK\CS\etrip-profiling\autoprofiler\tests\test_extended.py"`.
 4. Configure model (optional).
 5. Start analysis.
 

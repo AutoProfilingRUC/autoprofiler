@@ -35,7 +35,7 @@ print(f"Total: {total}")
 """
     
     target = TargetProgram(
-        command=["python", "-c", cpu_intensive_code],
+        command=[sys.executable, "-c", cpu_intensive_code],
         timeout=30
     )
     
@@ -84,7 +84,7 @@ print(f"Total: {total}")
     
     # 使用CProfileCollector需要先包装命令
     cprofile_collector = CProfileCollector()
-    wrapped_command = cprofile_collector.prepare_command(["python", "-c", many_calls_code])
+    wrapped_command = cprofile_collector.prepare_command([sys.executable, "-c", many_calls_code])
     
     target = TargetProgram(
         command=wrapped_command,
@@ -154,7 +154,7 @@ print(f"Created {len(data)} lists")
 """
     
     target = TargetProgram(
-        command=["python", "-c", memory_code],
+        command=[sys.executable, "-c", memory_code],
         timeout=30
     )
     

@@ -88,9 +88,21 @@ class DeepSeekAnalyzer:
         if output_language == "en":
             return (
                 "You are a senior software performance engineer. "
-                "Analyze the provided profiling/static signals and source structure, then provide concrete actionable optimizations."
+                "Analyze the provided profiling/static signals and source structure, then provide concrete actionable optimizations.\n"
+                "Markdown formatting rules:\n"
+                "- Return valid Markdown only.\n"
+                "- If you include code examples, use fenced code blocks with matching opening/closing backticks.\n"
+                "- Put fenced code blocks at top-level (do NOT nest fences inside list items).\n"
+                "- Ensure each fence marker is on its own line."
             )
-        return "你是一个专业的软件性能分析专家，请分析提供的性能信号或代码结构，给出具体可执行的优化建议。"
+        return (
+            "你是一个专业的软件性能分析专家，请分析提供的性能信号或代码结构，给出具体可执行的优化建议。\n"
+            "Markdown 格式规则：\n"
+            "- 仅输出合法 Markdown。\n"
+            "- 如需给出代码示例，请使用成对的 fenced code block（``` 开始，``` 结束）。\n"
+            "- 代码围栏不要嵌套在列表项内部，尽量放在顶层段落。\n"
+            "- 围栏标记必须单独成行。"
+        )
 
     @staticmethod
     def _create_blackbox_prompt(performance_data: dict, output_language: str = "zh") -> str:

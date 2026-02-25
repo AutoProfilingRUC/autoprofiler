@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Iterable, List
@@ -26,13 +28,16 @@ class Runner:
 
     def run(self, target: TargetProgram, collectors: Iterable[Collector]) -> ProfilingSession:
         started_at = datetime.now(timezone.utc)
+        command = self._resolve_command(target.command)
+        if command != target.command:
+            self.logger.debug("Runner normalized command from %s to %s", target.command, command)
         self.logger.debug(
             "Runner launching command: %s (cwd=%s)",
-            target.command,
+            command,
             target.cwd,
         )
         process = subprocess.Popen(
-            target.command,
+            command,
             cwd=target.cwd,
             env=self._build_env(target),
             stdout=subprocess.PIPE,
@@ -81,6 +86,18 @@ class Runner:
         if target.env:
             env.update(target.env)
         return env
+
+    @staticmethod
+    def _resolve_command(command: List[str]) -> List[str]:
+        if not command:
+            return command
+        resolved = list(command)
+        executable = str(resolved[0] or "")
+        lowered = executable.lower()
+        # Linux images may only provide `python3`; map bare `python` to current interpreter.
+        if lowered in {"python", "python.exe"} and shutil.which(executable) is None:
+            resolved[0] = sys.executable
+        return resolved
 
 
 class AttachRunner:

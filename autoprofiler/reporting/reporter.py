@@ -11,7 +11,13 @@ def render_markdown(session: ProfilingSession) -> str:
     lines: List[str] = []
     
     # 标题双语化
-    lines.append(f"# AutoProfiler Report for `{ ' '.join(session.target.command) }` / 分析报告")
+    lines.append("# AutoProfiler Report / 分析报告")
+    lines.append("")
+    lines.append("## Target Command / 目标命令")
+    lines.append("- Full command / 完整命令：")
+    lines.append("```bash")
+    lines.append(" ".join(session.target.command))
+    lines.append("```")
     lines.append("")
     
     # 执行摘要

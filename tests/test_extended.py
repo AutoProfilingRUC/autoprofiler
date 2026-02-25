@@ -37,7 +37,7 @@ print(f"Total: {total}")
 """
     
     target = TargetProgram(
-        command=["python", "-c", cpu_code],
+        command=[sys.executable, "-c", cpu_code],
         timeout=10
     )
     
@@ -91,7 +91,7 @@ print(f"Result: {result}")
 """
     
     cprofile_collector = CProfileCollector(top_n=5)
-    wrapped_command = cprofile_collector.prepare_command(["python", "-c", many_calls_code])
+    wrapped_command = cprofile_collector.prepare_command([sys.executable, "-c", many_calls_code])
     
     target = TargetProgram(
         command=wrapped_command,
@@ -166,7 +166,7 @@ print(f"Total items: {len(data)}, Total elements: {total}")
 """
     
     target = TargetProgram(
-        command=["python", "-c", memory_code],
+        command=[sys.executable, "-c", memory_code],
         timeout=30
     )
     

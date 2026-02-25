@@ -9,6 +9,16 @@ from pathlib import Path
 from utils.runtime_capabilities import configure_windows_gtk_runtime, get_runtime_capabilities
 
 
+def _normalize_markdown_input(markdown_text: str) -> str:
+    text = str(markdown_text or "")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Some model outputs place fenced code inside list items with indentation.
+    # Normalize fence markers to left margin so both parsers can recognize them.
+    text = re.sub(r"(?m)^[ \t]+(```[a-zA-Z0-9_+\-]*[ \t]*)$", r"\1", text)
+    text = re.sub(r"(?m)^[ \t]+(```[ \t]*)$", r"\1", text)
+    return text
+
+
 def _format_inline_markdown(text: str) -> str:
     raw = str(text or "")
     inline_code_tokens = {}
@@ -33,7 +43,7 @@ def _format_inline_markdown(text: str) -> str:
 
 
 def _convert_markdown_fallback(markdown_text: str) -> str:
-    text = str(markdown_text or "")
+    text = _normalize_markdown_input(markdown_text)
     code_blocks = {}
 
     def _store_code_block(match):
@@ -48,7 +58,12 @@ def _convert_markdown_fallback(markdown_text: str) -> str:
         code_blocks[key] = html
         return key
 
-    text = re.sub(r"```([a-zA-Z0-9_+\-]*)\n([\s\S]*?)```", _store_code_block, text)
+    # Support fenced code blocks with optional leading indentation.
+    text = re.sub(
+        r"(?ms)^[ \t]*```([a-zA-Z0-9_+\-]*)[ \t]*\n(.*?)^[ \t]*```[ \t]*$",
+        _store_code_block,
+        text,
+    )
     lines = text.splitlines()
     out_lines = []
     paragraph_lines = []
@@ -131,17 +146,22 @@ def _convert_markdown_fallback(markdown_text: str) -> str:
 
 def convert_markdown_to_html(markdown_text: str) -> str:
     """将Markdown转换为HTML（增强版）"""
+    normalized_text = _normalize_markdown_input(markdown_text)
     html = ""
     try:
         import markdown as markdown_lib
 
         html = markdown_lib.markdown(
-            markdown_text or "",
+            normalized_text,
             extensions=["extra", "fenced_code", "tables", "sane_lists", "nl2br"],
         )
+        # Python-Markdown can leave fenced code untouched in some nested/list cases.
+        # If raw fences remain, fallback parser provides a safer rendering result.
+        if "```" in html:
+            html = _convert_markdown_fallback(normalized_text)
     except Exception:
         # Fallback parser for environments without markdown package.
-        html = _convert_markdown_fallback(markdown_text or "")
+        html = _convert_markdown_fallback(normalized_text)
     
     # 添加CSS样式
     styled_html = f'''

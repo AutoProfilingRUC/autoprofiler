@@ -11,6 +11,7 @@ from analysis.manager import analysis_manager
 from analysis.code_analyzer import CodeAnalyzer
 from analysis.task import analyze_python_file
 from utils.file_handlers import save_uploaded_file
+from utils.path_input import normalize_user_path
 from models.deepseek_config import DeepSeekConfig
 
 def register_routes(app):
@@ -75,7 +76,7 @@ def register_routes(app):
         """通过绝对路径分析单个源码文件（多语言）"""
         try:
             payload = request.get_json(silent=True) or {}
-            file_path = str(payload.get('file_path', '')).strip()
+            file_path = normalize_user_path(payload.get('file_path', ''))
             if not file_path:
                 return jsonify({"success": False, "error": "file_path 不能为空"}), 400
 

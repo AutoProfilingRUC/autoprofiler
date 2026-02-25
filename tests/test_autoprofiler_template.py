@@ -7,12 +7,13 @@ using the ``AUTOPROFILER_TARGET`` environment variable.
 
 Example usage:
     python -m unittest tests.test_autoprofiler_template
-    AUTOPROFILER_TARGET="python my_script.py --flag" python -m unittest tests.test_autoprofiler_template
+    AUTOPROFILER_TARGET="/usr/bin/python3 my_script.py --flag" python -m unittest tests.test_autoprofiler_template
 """
 from __future__ import annotations
 
 import os
 import shlex
+import sys
 from pathlib import Path
 import unittest
 
@@ -23,7 +24,7 @@ from autoprofiler.patterns.loader import load_patterns
 from autoprofiler.reporting.reporter import render_markdown
 from autoprofiler.runner import Runner
 
-DEFAULT_COMMAND = ["python", "-c", "print('hello from AutoProfiler template')"]
+DEFAULT_COMMAND = [sys.executable, "-c", "print('hello from AutoProfiler template')"]
 
 
 def _resolve_target_command() -> list[str]:
@@ -31,7 +32,7 @@ def _resolve_target_command() -> list[str]:
     env_value = os.getenv("AUTOPROFILER_TARGET")
     if env_value:
         # shlex.split lets users provide a single string such as
-        # "python my_app.py --flag" and have it parsed into args.
+        # "/usr/bin/python3 my_app.py --flag" and have it parsed into args.
         return shlex.split(env_value)
     return DEFAULT_COMMAND
 
