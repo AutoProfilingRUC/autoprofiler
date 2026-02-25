@@ -105,12 +105,16 @@ async function saveDeepseekConfigQuiet(config) {
   }
 }
 
-async function ensureModelConfigOrFallback() {
+async function ensureModelConfigOrFallback(mode = "project") {
   const cfg = window.deepseekConfig || {};
   if (hasUsableModelConfig(cfg)) return cfg;
 
+  const localOnlyHint =
+    mode === "project"
+      ? "将继续本地降级分析（项目模式）。"
+      : "将继续本地分析（单文件模式，无 AI 分析）。";
   const confirmed = confirm(
-    "当前未配置 API 或本地模型。\n点击“确定”输入 API Key 并保存；点击“取消”将继续本地降级分析。"
+    `当前未配置 API 或本地模型。\n点击“确定”输入 API Key 并保存；点击“取消”${localOnlyHint}`
   );
   if (!confirmed) return cfg;
 
@@ -158,9 +162,7 @@ async function startPathAnalysis() {
 
   try {
     let deepseekConfig = window.deepseekConfig || {};
-    if (mode === "project") {
-      deepseekConfig = await ensureModelConfigOrFallback();
-    }
+    deepseekConfig = await ensureModelConfigOrFallback(mode);
 
     const endpoint = mode === "project" ? "/api/proj-analyser/analyze" : "/api/analyze-file-path";
     const outputLanguage =
@@ -279,7 +281,11 @@ function displayStats(result) {
   const sessionInfo = result.session_info || {};
   const deepseekResults = result.deepseek_results || {};
   const codeStructure = result.code_structure || {};
-  const isProject = !!result.analysis_mode;
+  const analysisMode = String(result.analysis_mode || "");
+  const isProject =
+    (codeStructure && codeStructure.type === "project") ||
+    analysisMode.startsWith("project_") ||
+    analysisMode.startsWith("fallback_local");
   const tokenUsage = result.token_usage_summary || {};
 
   let html = "";

@@ -147,6 +147,11 @@ Please structure your response with:
 - Resource reduction:
 - Maintainability improvement:
 
+Rules:
+- Treat blackbox signals as heuristic and potentially incomplete.
+- Avoid unsupported assumptions about business logic.
+- Mark uncertain conclusions explicitly.
+
 Reply in English with concrete and actionable steps."""
 
         if is_static:
@@ -194,6 +199,11 @@ Reply in English with concrete and actionable steps."""
 - 性能提升预估：
 - 资源消耗降低：
 - 代码可维护性提升：
+
+规则：
+- 黑盒信号属于启发式，可能不完整。
+- 不要对业务逻辑做无证据推断。
+- 不确定结论请明确标注“待验证”。
 
 请用中文回复，建议要具体、可操作。"""
         

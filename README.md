@@ -8,6 +8,37 @@ It supports:
 - Project-level analysis (`proj-analyser`) for medium/large repositories.
 - AI-assisted reporting (remote API or local OpenAI-compatible model).
 
+## Project Architecture
+
+Core modules:
+
+- `web.py`: Flask app entrypoint and route registration.
+- `api/`: HTTP handlers for single-file analysis, project analysis, model config, and system capability checks.
+- `analysis/`: Single-file pipeline (runtime collectors, static analyzer, AI merge/report composition).
+- `proj_analyser/`: Project scanner, repository context builder, focus planning, iterative API dialogue.
+- `utils/`: Markdown/HTML conversion, environment capability detection, shared helpers.
+- `templates/` + `static/` + `gui/`: Frontend pages and interaction logic.
+- `uploads/`: Runtime user config and temporary artifacts (git-ignored for secrets/state).
+
+Execution model:
+
+- Single-file mode:
+  1. API receives absolute file path.
+  2. Python files run runtime collectors (`cProfile`, optional `psutil`) plus static analysis.
+  3. Non-Python files use static multi-language analysis.
+  4. If model config exists, AI analysis is added; otherwise local whitebox result is returned.
+- Project mode (`proj-analyser`):
+  1. Scanner builds repository structure summary and candidate entrypoints.
+  2. Focus planner chooses high-priority files/ranges under token budget.
+  3. API dialogue runs incrementally (`need_files` -> `final_report`) to avoid dumping whole repo in one request.
+  4. Final report is assembled with whitebox as primary baseline and blackbox as supporting signal.
+
+Data and artifacts:
+
+- Analysis tasks are async and queried by `analysis_id` via polling APIs.
+- Project reports are written under `.autoprofiler_proj_analyser/` and mirrored to `docs/generated/project/`.
+- Single-file results are returned directly in response payload (`markdown`, `html`, optional `pdf_path`).
+
 `docs/` is the source of truth for maintained docs:
 
 - `docs/README.md`
@@ -48,9 +79,16 @@ python tools/bootstrap.py
 Linux/macOS:
 
 ```bash
-python -m venv .venv
-python tools/bootstrap.py
+python3 -m venv .venv
+python3 tools/bootstrap.py
 source .venv/bin/activate
+```
+
+Linux note (recommended before bootstrap, Debian/Ubuntu):
+
+```bash
+sudo apt update
+sudo apt install -y python3-venv python3-pip libcairo2 libpango-1.0-0 libgdk-pixbuf-2.0-0 libffi-dev shared-mime-info
 ```
 
 ### 2) Start Web server
@@ -127,7 +165,7 @@ POST /api/analyze-file-path
 Content-Type: application/json
 
 {
-  "file_path": "E:/repo/src/service/handler.ts",
+  "file_path": "/abs/path/to/repo/src/service/handler.ts",
   "output_language": "en"
 }
 ```
@@ -147,7 +185,7 @@ POST /api/proj-analyser/analyze
 Content-Type: application/json
 
 {
-  "project_path": "E:/MY_WORK/CS/etrip-profiling/autoprofiler",
+  "project_path": "/abs/path/to/repo",
   "query": ["performance", "api", "bottleneck"],
   "output_language": "zh",
   "top_files": 12,
@@ -219,3 +257,14 @@ python -m unittest discover tests
 
 - This means no usable model config was found or API call failed.
 - Check `/api/deepseek/test` and runtime config fields.
+
+`bootstrap.py` fails at `pip install -U pip` on Linux:
+
+- This usually means venv/pip/runtime deps are incomplete, or network/proxy blocks pip.
+- Re-run with Python 3 and check prerequisites:
+  - `python3 -m venv .venv`
+  - `python3 tools/bootstrap.py`
+- If needed, run manual recovery:
+  - `.venv/bin/python -m ensurepip --upgrade`
+  - `.venv/bin/python -m pip install -U pip`
+  - `.venv/bin/python -m pip install -r requirements.txt`

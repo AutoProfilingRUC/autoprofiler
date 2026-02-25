@@ -22,6 +22,16 @@ from utils.runtime_capabilities import get_runtime_capabilities
 PYTHON_SUFFIXES = {".py", ".pyw"}
 
 
+def _prioritize_deepseek_results(deepseek_results: dict) -> dict:
+    data = deepseek_results or {}
+    ordered = {}
+    if data.get("whitebox"):
+        ordered["whitebox"] = data["whitebox"]
+    if data.get("blackbox"):
+        ordered["blackbox"] = data["blackbox"]
+    return ordered
+
+
 def _render_static_markdown_report(code_structure: dict, deepseek_results: dict, output_language: str) -> str:
     basic = code_structure.get("basic_info", {}) if isinstance(code_structure, dict) else {}
     complexity = code_structure.get("complexity", {}) if isinstance(code_structure, dict) else {}
@@ -104,17 +114,25 @@ def _render_static_markdown_report(code_structure: dict, deepseek_results: dict,
             "# DeepSeek AI Analysis Results" if output_language == "en" else "# DeepSeek AI 分析结果"
         )
         lines.append("")
+        lines.append(
+            "白盒结论为主，黑盒信号为辅。"
+            if output_language != "en"
+            else "Use whitebox conclusions as primary baseline; treat blackbox signals as secondary."
+        )
+        lines.append("")
+        if deepseek_results.get("whitebox"):
+            lines.append("## Whitebox Code Analysis" if output_language == "en" else "## 白盒代码分析（主）")
+            lines.append("")
+            lines.append(str(deepseek_results["whitebox"]))
+            lines.append("")
         if deepseek_results.get("blackbox"):
             lines.append(
-                "## Blackbox Performance Analysis" if output_language == "en" else "## 黑盒性能分析"
+                "## Blackbox Performance Analysis (Secondary)"
+                if output_language == "en"
+                else "## 黑盒性能分析（辅）"
             )
             lines.append("")
             lines.append(str(deepseek_results["blackbox"]))
-            lines.append("")
-        if deepseek_results.get("whitebox"):
-            lines.append("## Whitebox Code Analysis" if output_language == "en" else "## 白盒代码分析")
-            lines.append("")
-            lines.append(str(deepseek_results["whitebox"]))
             lines.append("")
 
     return "\n".join(lines)
@@ -211,6 +229,8 @@ def _run_static_multilang_analysis(file_path, analysis_id, deepseek_config, uplo
     except Exception:
         pdf_path = None
 
+    deepseek_results = _prioritize_deepseek_results(deepseek_results)
+
     result = {
         "markdown": markdown_report,
         "html": html_report,
@@ -272,11 +292,7 @@ def _run_python_runtime_analysis(file_path, analysis_id, deepseek_config, upload
     psutil_available = bool((runtime_caps.get("modules") or {}).get("psutil", True))
 
     file_path_obj = Path(file_path)
-    target = TargetProgram(
-        command=[sys.executable, str(file_path_obj)],
-        timeout=60,
-        cwd=str(file_path_obj.parent),
-    )
+    base_command = [sys.executable, str(file_path_obj)]
     collectors = []
     if psutil_available:
         collectors.append(PsutilCollector(sample_interval=0.1))
@@ -293,6 +309,18 @@ def _run_python_runtime_analysis(file_path, analysis_id, deepseek_config, upload
             progress_text="采样组件不可用",
         )
         return
+
+    wrapped_command = list(base_command)
+    for collector in collectors:
+        prepare = getattr(collector, "prepare_command", None)
+        if callable(prepare):
+            wrapped_command = prepare(wrapped_command)
+
+    target = TargetProgram(
+        command=wrapped_command,
+        timeout=60,
+        cwd=str(file_path_obj.parent),
+    )
 
     analysis_manager.update_status(
         analysis_id,
@@ -407,14 +435,25 @@ def _run_python_runtime_analysis(file_path, analysis_id, deepseek_config, upload
             if output_language == "en"
             else "# DeepSeek AI 分析结果\n\n"
         )
+        markdown_report += (
+            "Use whitebox conclusions as primary baseline; treat blackbox signals as secondary.\n\n"
+            if output_language == "en"
+            else "白盒结论为主，黑盒信号为辅。\n\n"
+        )
+        if deepseek_results.get("whitebox"):
+            section_title = (
+                "## Whitebox Code Analysis (Primary)"
+                if output_language == "en"
+                else "## 白盒代码分析（主）"
+            )
+            markdown_report += f"{section_title}\n\n{deepseek_results['whitebox']}\n\n"
         if deepseek_results.get("blackbox"):
             section_title = (
-                "## Blackbox Performance Analysis" if output_language == "en" else "## 黑盒性能分析"
+                "## Blackbox Performance Analysis (Secondary)"
+                if output_language == "en"
+                else "## 黑盒性能分析（辅）"
             )
             markdown_report += f"{section_title}\n\n{deepseek_results['blackbox']}\n\n"
-        if deepseek_results.get("whitebox"):
-            section_title = "## Whitebox Code Analysis" if output_language == "en" else "## 白盒代码分析"
-            markdown_report += f"{section_title}\n\n{deepseek_results['whitebox']}\n\n"
 
     if code_structure and not deepseek_results.get("whitebox"):
         markdown_report += "\n\n" + "=" * 60 + "\n"
@@ -437,6 +476,8 @@ def _run_python_runtime_analysis(file_path, analysis_id, deepseek_config, upload
         pdf_path = convert_markdown_to_pdf(markdown_report, Path(file_path).stem, upload_folder)
     except Exception:
         pdf_path = None
+
+    deepseek_results = _prioritize_deepseek_results(deepseek_results)
 
     result = {
         "markdown": markdown_report,

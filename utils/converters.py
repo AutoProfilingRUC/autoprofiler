@@ -1,76 +1,147 @@
 """
 格式转换器
 """
+import html as html_lib
 import re
 from datetime import datetime
 from pathlib import Path
 
 from utils.runtime_capabilities import configure_windows_gtk_runtime, get_runtime_capabilities
 
+
+def _format_inline_markdown(text: str) -> str:
+    raw = str(text or "")
+    inline_code_tokens = {}
+
+    def _store_inline_code(match):
+        key = f"__INLINE_CODE_{len(inline_code_tokens)}__"
+        inline_code_tokens[key] = f"<code>{html_lib.escape(match.group(1))}</code>"
+        return key
+
+    raw = re.sub(r"`([^`]+)`", _store_inline_code, raw)
+    escaped = html_lib.escape(raw)
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    escaped = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<em>\1</em>", escaped)
+    escaped = re.sub(
+        r"\[([^\]]+)\]\(([^)]+)\)",
+        lambda m: f'<a href="{html_lib.escape(m.group(2), quote=True)}">{m.group(1)}</a>',
+        escaped,
+    )
+    for key, value in inline_code_tokens.items():
+        escaped = escaped.replace(key, value)
+    return escaped
+
+
+def _convert_markdown_fallback(markdown_text: str) -> str:
+    text = str(markdown_text or "")
+    code_blocks = {}
+
+    def _store_code_block(match):
+        lang = (match.group(1) or "").strip().lower()
+        code = (match.group(2) or "").strip("\n")
+        safe_code = html_lib.escape(code)
+        if lang:
+            html = f'<pre class="language-{lang}"><code>{safe_code}</code></pre>'
+        else:
+            html = f"<pre><code>{safe_code}</code></pre>"
+        key = f"__CODE_BLOCK_{len(code_blocks)}__"
+        code_blocks[key] = html
+        return key
+
+    text = re.sub(r"```([a-zA-Z0-9_+\-]*)\n([\s\S]*?)```", _store_code_block, text)
+    lines = text.splitlines()
+    out_lines = []
+    paragraph_lines = []
+    list_mode = None
+
+    def flush_paragraph():
+        nonlocal paragraph_lines
+        if not paragraph_lines:
+            return
+        content = " ".join(s.strip() for s in paragraph_lines if s.strip())
+        if content:
+            out_lines.append(f"<p>{_format_inline_markdown(content)}</p>")
+        paragraph_lines = []
+
+    def close_list():
+        nonlocal list_mode
+        if list_mode == "ul":
+            out_lines.append("</ul>")
+        elif list_mode == "ol":
+            out_lines.append("</ol>")
+        list_mode = None
+
+    for line in lines:
+        stripped = line.strip()
+        stripped_left = line.lstrip()
+
+        if stripped in code_blocks:
+            flush_paragraph()
+            close_list()
+            out_lines.append(code_blocks[stripped])
+            continue
+
+        if not stripped:
+            flush_paragraph()
+            close_list()
+            continue
+
+        heading = re.match(r"^(#{1,4})\s+(.+)$", stripped_left)
+        if heading:
+            flush_paragraph()
+            close_list()
+            level = len(heading.group(1))
+            content = _format_inline_markdown(heading.group(2))
+            out_lines.append(f"<h{level}>{content}</h{level}>")
+            continue
+
+        if re.match(r"^---\s*$", stripped):
+            flush_paragraph()
+            close_list()
+            out_lines.append("<hr>")
+            continue
+
+        ul_item = re.match(r"^-\s+(.+)$", stripped_left)
+        if ul_item:
+            flush_paragraph()
+            if list_mode != "ul":
+                close_list()
+                out_lines.append("<ul>")
+                list_mode = "ul"
+            out_lines.append(f"<li>{_format_inline_markdown(ul_item.group(1))}</li>")
+            continue
+
+        ol_item = re.match(r"^\d+\.\s+(.+)$", stripped_left)
+        if ol_item:
+            flush_paragraph()
+            if list_mode != "ol":
+                close_list()
+                out_lines.append("<ol>")
+                list_mode = "ol"
+            out_lines.append(f"<li>{_format_inline_markdown(ol_item.group(1))}</li>")
+            continue
+
+        close_list()
+        paragraph_lines.append(stripped_left)
+
+    flush_paragraph()
+    close_list()
+    return "\n".join(out_lines)
+
+
 def convert_markdown_to_html(markdown_text: str) -> str:
     """将Markdown转换为HTML（增强版）"""
-    
-    html = markdown_text
-    
-    # 标题转换
-    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
-    html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
-    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
-    html = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', html, flags=re.MULTILINE)
-    
-    # 粗体和斜体
-    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
-    html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
-    
-    # 代码块
-    def replace_code_block(match):
-        code = match.group(1)
-        lang = ''
-        if code.startswith('python') or code.startswith('python\n'):
-            lang = 'python'
-            code = code[7:] if code.startswith('python\n') else code[6:]
-        elif code.startswith('json') or code.startswith('json\n'):
-            lang = 'json'
-            code = code[5:] if code.startswith('json\n') else code[4:]
-        
-        code = code.strip()
-        return f'<pre class="language-{lang}"><code>{code}</code></pre>'
-    
-    html = re.sub(r'```(\w*)\n?(.+?)```', replace_code_block, html, flags=re.DOTALL)
-    html = re.sub(r'`(.+?)`', r'<code>\1</code>', html)
-    
-    # 列表
-    html = re.sub(r'^- (.+)$', r'<li>\1</li>', html, flags=re.MULTILINE)
-    html = re.sub(r'(<li>.+</li>\n)+', r'<ul>\g<0></ul>', html)
-    
-    # 有序列表
-    html = re.sub(r'^\d+\. (.+)$', r'<li>\1</li>', html, flags=re.MULTILINE)
-    html = re.sub(r'(<li>.+</li>\n)+', r'<ol>\g<0></ol>', html)
-    
-    # 链接
-    html = re.sub(r'\[(.+?)\]\((.+?)\)', r'<a href="\2">\1</a>', html)
-    
-    # 水平线
-    html = re.sub(r'^---\s*$', r'<hr>', html, flags=re.MULTILINE)
-    
-    # 段落
-    lines = html.split('\n')
-    result_lines = []
-    current_paragraph = []
-    
-    for line in lines:
-        if line.strip() and not line.startswith('<'):
-            current_paragraph.append(line)
-        else:
-            if current_paragraph:
-                result_lines.append(f'<p>{" ".join(current_paragraph)}</p>')
-                current_paragraph = []
-            result_lines.append(line)
-    
-    if current_paragraph:
-        result_lines.append(f'<p>{" ".join(current_paragraph)}</p>')
-    
-    html = '\n'.join(result_lines)
+    html = ""
+    try:
+        import markdown as markdown_lib
+
+        html = markdown_lib.markdown(
+            markdown_text or "",
+            extensions=["extra", "fenced_code", "tables", "sane_lists", "nl2br"],
+        )
+    except Exception:
+        # Fallback parser for environments without markdown package.
+        html = _convert_markdown_fallback(markdown_text or "")
     
     # 添加CSS样式
     styled_html = f'''

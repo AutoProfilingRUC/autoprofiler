@@ -8,6 +8,37 @@ AutoProfiler 是一个本地性能分析工具，提供 Web 界面和 HTTP API�
 - 中大型仓库的项目级分析（`proj-analyser`）。
 - AI 增强报告（远程 API 或本地 OpenAI 兼容模型）。
 
+## 项目整体框架
+
+核心模块：
+
+- `web.py`：Flask 应用入口与路由注册。
+- `api/`：单文件分析、项目分析、模型配置、系统能力查询等 HTTP 接口。
+- `analysis/`：单文件分析主流程（运行时采集、静态分析、AI 合并与报告组装）。
+- `proj_analyser/`：项目扫描、仓库上下文构建、focus 计划、增量 API 对话。
+- `utils/`：Markdown/HTML 转换、运行环境能力探测、通用工具函数。
+- `templates/` + `static/` + `gui/`：前端页面与交互逻辑。
+- `uploads/`：运行期配置和临时产物（默认 git ignore，避免提交密钥与状态文件）。
+
+执行链路：
+
+- 单文件模式：
+  1. 接口接收绝对文件路径。
+  2. Python 文件执行运行时采集（`cProfile`、可选 `psutil`）并结合静态分析。
+  3. 非 Python 文件执行静态多语言分析。
+  4. 若模型配置可用，追加 AI 结果；否则返回本地白盒分析结果。
+- 项目模式（`proj-analyser`）：
+  1. 扫描仓库结构并生成入口候选。
+  2. 依据 token 预算生成重点文件/片段计划。
+  3. 按 `need_files -> final_report` 协议增量调用 API，避免一次性发送全仓库。
+  4. 生成报告时采用“白盒为主、黑盒为辅”的融合策略。
+
+数据与产物：
+
+- 分析任务异步执行，通过 `analysis_id` 轮询结果。
+- 项目分析产物写入 `.autoprofiler_proj_analyser/`，并镜像到 `docs/generated/project/`。
+- 单文件结果通过接口直接返回（`markdown`、`html`、可选 `pdf_path`）。
+
 `docs/` 是维护中的文档入口：
 
 - `docs/README.md`
@@ -48,9 +79,16 @@ python tools/bootstrap.py
 Linux/macOS：
 
 ```bash
-python -m venv .venv
-python tools/bootstrap.py
+python3 -m venv .venv
+python3 tools/bootstrap.py
 source .venv/bin/activate
+```
+
+Linux 依赖建议（Debian/Ubuntu，先执行）：
+
+```bash
+sudo apt update
+sudo apt install -y python3-venv python3-pip libcairo2 libpango-1.0-0 libgdk-pixbuf-2.0-0 libffi-dev shared-mime-info
 ```
 
 ### 2) 启动 Web 服务
@@ -127,7 +165,7 @@ POST /api/analyze-file-path
 Content-Type: application/json
 
 {
-  "file_path": "E:/repo/src/service/handler.ts",
+  "file_path": "/abs/path/to/repo/src/service/handler.ts",
   "output_language": "en"
 }
 ```
@@ -147,7 +185,7 @@ POST /api/proj-analyser/analyze
 Content-Type: application/json
 
 {
-  "project_path": "E:/MY_WORK/CS/etrip-profiling/autoprofiler",
+  "project_path": "/abs/path/to/repo",
   "query": ["performance", "api", "bottleneck"],
   "output_language": "zh",
   "top_files": 12,
@@ -219,3 +257,14 @@ python -m unittest discover tests
 
 - 代表当前没有可用模型配置，或 API 调用失败。
 - 先用 `/api/deepseek/test` 验证配置连通性。
+
+`bootstrap.py` 在 Linux 执行 `pip install -U pip` 失败：
+
+- 常见原因是 venv/pip 组件不完整，或网络/代理限制导致 pip 失败。
+- 建议使用 Python 3 重新执行：
+  - `python3 -m venv .venv`
+  - `python3 tools/bootstrap.py`
+- 必要时可手动恢复：
+  - `.venv/bin/python -m ensurepip --upgrade`
+  - `.venv/bin/python -m pip install -U pip`
+  - `.venv/bin/python -m pip install -r requirements.txt`

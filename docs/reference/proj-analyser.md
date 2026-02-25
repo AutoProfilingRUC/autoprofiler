@@ -13,7 +13,7 @@ POST /api/proj-analyser/analyze
 Content-Type: application/json
 
 {
-  "project_path": "E:/MY_WORK/CS/etrip-profiling/autoprofiler",
+  "project_path": "/abs/path/to/repo",
   "query": ["performance", "api", "bottleneck"],
   "output_language": "zh",
   "top_files": 12,
