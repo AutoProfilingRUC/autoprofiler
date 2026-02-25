@@ -36,7 +36,7 @@ AutoProfiler 是一个本地性能分析工具，提供 Web 界面和 HTTP API�
 数据与产物：
 
 - 分析任务异步执行，通过 `analysis_id` 轮询结果。
-- 项目分析产物写入 `.autoprofiler_proj_analyser/`，并镜像到 `docs/generated/project/`。
+- 项目分析产物写入 `uploads/runtime_artifacts/project_reports/<project_key>/`，并镜像到 `docs/generated/project/`。
 - 单文件结果通过接口直接返回（`markdown`、`html`、可选 `pdf_path`）。
 
 `docs/` 是维护中的文档入口：
@@ -207,11 +207,11 @@ GET /api/proj-analyser/analysis/<analysis_id>
 
 项目模式输出：
 
-- `.autoprofiler_proj_analyser/report_project_api.md`
-- `.autoprofiler_proj_analyser/report_project_api.html`
-- `.autoprofiler_proj_analyser/api_dialogue.json`
-- `.autoprofiler_proj_analyser/analysis_context.json`
-- `.autoprofiler_proj_analyser/focus_plan.json`
+- `uploads/runtime_artifacts/project_reports/<project_key>/report_project_api.md`
+- `uploads/runtime_artifacts/project_reports/<project_key>/report_project_api.html`
+- `uploads/runtime_artifacts/project_reports/<project_key>/api_dialogue.json`
+- `uploads/runtime_artifacts/project_reports/<project_key>/analysis_context.json`
+- `uploads/runtime_artifacts/project_reports/<project_key>/focus_plan.json`
 
 其中 `api_dialogue.json` 现在包含每轮及汇总 token 用量（`token_usage_rounds`、`token_usage_summary`），API 模式报告会追加“API Token 用量”章节。
 
@@ -223,6 +223,7 @@ GET /api/proj-analyser/analysis/<analysis_id>
 - `docs/generated/project/report_project_focus.json`
 
 单文件结果通过 API 返回：`markdown`、`html`、可选 `pdf_path`。
+运行时分析生成的 `cProfile .pstats` 统一写入 `uploads/runtime_artifacts/cprofile/`。
 
 ## 测试
 

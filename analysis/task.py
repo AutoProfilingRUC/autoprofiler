@@ -296,8 +296,9 @@ def _run_python_runtime_analysis(file_path, analysis_id, deepseek_config, upload
     collectors = []
     if psutil_available:
         collectors.append(PsutilCollector(sample_interval=0.1))
+    cprofile_dir = Path(upload_folder) / "runtime_artifacts" / "cprofile"
     try:
-        collectors.append(CProfileCollector())
+        collectors.append(CProfileCollector(output_dir=cprofile_dir))
     except Exception:
         pass
 

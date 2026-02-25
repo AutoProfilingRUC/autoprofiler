@@ -33,11 +33,11 @@ GET /api/proj-analyser/analysis/<analysis_id>
 
 Primary outputs:
 
-- `.autoprofiler_proj_analyser/report_project_api.md`
-- `.autoprofiler_proj_analyser/report_project_api.html`
-- `.autoprofiler_proj_analyser/api_dialogue.json`
-- `.autoprofiler_proj_analyser/analysis_context.json`
-- `.autoprofiler_proj_analyser/focus_plan.json`
+- `uploads/runtime_artifacts/project_reports/<project_key>/report_project_api.md`
+- `uploads/runtime_artifacts/project_reports/<project_key>/report_project_api.html`
+- `uploads/runtime_artifacts/project_reports/<project_key>/api_dialogue.json`
+- `uploads/runtime_artifacts/project_reports/<project_key>/analysis_context.json`
+- `uploads/runtime_artifacts/project_reports/<project_key>/focus_plan.json`
 
 `api_dialogue.json` includes:
 

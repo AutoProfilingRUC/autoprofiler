@@ -36,7 +36,7 @@ Execution model:
 Data and artifacts:
 
 - Analysis tasks are async and queried by `analysis_id` via polling APIs.
-- Project reports are written under `.autoprofiler_proj_analyser/` and mirrored to `docs/generated/project/`.
+- Project reports are written under `uploads/runtime_artifacts/project_reports/<project_key>/` and mirrored to `docs/generated/project/`.
 - Single-file results are returned directly in response payload (`markdown`, `html`, optional `pdf_path`).
 
 `docs/` is the source of truth for maintained docs:
@@ -207,11 +207,11 @@ Project mode context sent to model includes repository summary, directory distri
 
 Project outputs:
 
-- `.autoprofiler_proj_analyser/report_project_api.md`
-- `.autoprofiler_proj_analyser/report_project_api.html`
-- `.autoprofiler_proj_analyser/api_dialogue.json`
-- `.autoprofiler_proj_analyser/analysis_context.json`
-- `.autoprofiler_proj_analyser/focus_plan.json`
+- `uploads/runtime_artifacts/project_reports/<project_key>/report_project_api.md`
+- `uploads/runtime_artifacts/project_reports/<project_key>/report_project_api.html`
+- `uploads/runtime_artifacts/project_reports/<project_key>/api_dialogue.json`
+- `uploads/runtime_artifacts/project_reports/<project_key>/analysis_context.json`
+- `uploads/runtime_artifacts/project_reports/<project_key>/focus_plan.json`
 
 `api_dialogue.json` includes per-round and aggregated API token usage (`token_usage_rounds`, `token_usage_summary`), and the report appends an `API Token Usage` section in API mode.
 
@@ -223,6 +223,7 @@ Mirrored review copies:
 - `docs/generated/project/report_project_focus.json`
 
 Single-file outputs are returned in API result payload (`markdown`, `html`, optional `pdf_path`).
+Runtime profiler artifacts (`cProfile .pstats`) are written to `uploads/runtime_artifacts/cprofile/`.
 
 ## Testing
 

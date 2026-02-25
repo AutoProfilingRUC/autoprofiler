@@ -21,9 +21,11 @@ dist/
 *.log
 .cache/
 .autoprofiler_proj_analyser/
+cprofile_*.pstats
 profile_report.json
 findings.json
 report.md
+tests/fixtures/docs/
 
 # ===== Generated docs/reports =====
 docs/generated/**

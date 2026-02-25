@@ -3,6 +3,7 @@ Service orchestrator for proj-analyser.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,19 @@ from proj_analyser.api_dialogue import run_api_dialogue
 from proj_analyser.focus import build_focus_plan
 from proj_analyser.scanner import scan_project
 from utils.converters import convert_markdown_to_html
+
+
+def _default_runtime_artifact_root() -> Path:
+    return Path(__file__).resolve().parent.parent / "uploads" / "runtime_artifacts"
+
+
+def _build_project_run_key(root: Path) -> str:
+    base_name = root.name or "project"
+    safe_name = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in base_name).strip("_")
+    if not safe_name:
+        safe_name = "project"
+    digest = hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:12]
+    return f"{safe_name}_{digest}"
 
 
 def _emit_progress(cb: Optional[Callable], progress: int, text: str) -> None:
@@ -328,6 +342,7 @@ def analyze_project_with_api(
     max_file_chars: int = 4000,
     temperature: float = 0.1,
     max_output_tokens: int = 2200,
+    runtime_artifact_root: Optional[str] = None,
     progress_callback: Optional[Callable] = None,
 ) -> Dict:
     root = Path(project_path).resolve()
@@ -390,7 +405,13 @@ def analyze_project_with_api(
         )
 
     _emit_progress(progress_callback, 85, "正在写入项目级分析产物...")
-    out_dir = root / ".autoprofiler_proj_analyser"
+    runtime_root = (
+        Path(runtime_artifact_root).resolve()
+        if runtime_artifact_root
+        else _default_runtime_artifact_root()
+    )
+    run_key = _build_project_run_key(root)
+    out_dir = runtime_root / "project_reports" / run_key
     out_dir.mkdir(parents=True, exist_ok=True)
 
     report_markdown = _merge_report_sections(
@@ -451,7 +472,7 @@ def analyze_project_with_api(
     )
 
     # Also mirror key outputs to docs/generated/project for easier review.
-    docs_dir = root / "docs" / "generated" / "project"
+    docs_dir = Path(__file__).resolve().parent.parent / "docs" / "generated" / "project"
     docs_dir.mkdir(parents=True, exist_ok=True)
     docs_report_path = docs_dir / "report_project_api.md"
     docs_report_html_path = docs_dir / "report_project_api.html"
